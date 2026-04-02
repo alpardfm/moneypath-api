@@ -1,131 +1,297 @@
-# Personal Finance API
+# Moneypath API
 
-A backend project for tracking personal cash flow, wallets, debts, budgets, and financial summaries.
+Moneypath API is a backend service for a single-user personal finance application designed to help users track money movement, wallet balances, debts, and basic financial condition through a simple but structured system.
 
-Built as a practical system to manage income, expenses, obligations, and financial discipline in a structured way.
+This project is built not only as a backend exercise, but as a real product foundation intended for daily personal use, future frontend integration, deployment, and iterative improvement based on real-world usage.
 
-## Goals
+---
 
-- Record income and expenses clearly
-- Separate money by wallet/account
-- Track debts and installment progress
-- Monitor monthly cash flow
-- Build a foundation for budgeting and financial insights
+## Vision
 
-## Core Features
+Moneypath is a personal finance product focused on:
 
+- tracking money flow clearly
+- managing multiple wallets
+- recording debt and debt payments
+- keeping wallet balances trustworthy
+- providing basic financial summary and dashboard
+- building a usable daily finance workflow before chasing advanced features
+
+The first version prioritizes **trust, correctness, and usability** over complexity.
+
+---
+
+## Product Principles
+
+### 1. Mutation is the source of truth
+All balance-changing events must go through `mutation`.
+
+This means:
+
+- wallet balance is not manually edited
+- debt financial state is not freely manipulated
+- summary and dashboard are derived from actual financial events
+
+### 2. Wallet and Debt are master data
+Wallet and Debt are master records. Mutation is the event layer that changes financial state.
+
+### 3. Trust over features
+This is a finance product. If wallet balance or debt state becomes inconsistent, user trust is broken.
+
+### 4. Real usage over theoretical completeness
+The MVP is built to be actually used in daily life, not just to look complete on paper.
+
+---
+
+## MVP Scope
+
+### Included
+- Auth
+- Profile
 - Wallet management
-- Income & expense transactions
-- Categories
-- Debt tracking
-- Monthly summary
-- Budget overview
+- Mutation management
+- Debt management
+- Basic dashboard
+- Basic summary
 
-## Planned Features
+### Postponed
+- advanced analytics
+- category reporting
+- recurring transactions
+- notifications
+- export/report
+- multi-user collaboration
+- advanced auth flows
+- richer settings and preferences
 
-- Recurring transactions
-- Installment schedule tracking
-- Budget alerts
-- Financial health summary
-- Cash flow projection
-- Export report
+---
 
-## Tech Stack
+## Core Domain
 
-- Go
-- PostgreSQL
-- REST API
-- Docker
-- `chi` router
-- `pgx` PostgreSQL driver
-- `golang-migrate` compatible SQL migrations
-- Optional: Swagger / Makefile / CI
+### Master Data
+- User
+- Wallet
+- Debt
 
-## Project Scope
+### Financial Event
+- Mutation
 
-This project is focused on backend fundamentals:
-- clean API design
-- good domain structure
-- predictable business logic
-- maintainable codebase
+### Derived Data
+- Dashboard
+- Summary
 
-Frontend is not the priority for now.
+---
 
-## Main Entities
+## Main Business Rules
 
-- Users
-- Wallets
-- Categories
-- Transactions
-- Debts
-- Budget Plans
-- Monthly Summaries
+## Wallet
+- a user can create multiple wallets
+- wallet balance cannot be edited directly
+- all wallet balance changes must go through mutations
+- wallet balance must not go below zero
+- outgoing mutation must be rejected if balance is insufficient
+- wallet cannot be deleted/inactivated if balance is not zero
+- wallet can be soft deleted/inactivated only if balance is zero
+- inactive wallet should not appear in active selection
+- wallet history must remain intact
 
-## Example Use Cases
+## Debt
+- debt is master data
+- debt can be created directly from debt module
+- debt can also be created from mutation flow
+- debt state is updated through related mutations
+- debt cannot be deleted if remaining debt is not zero
+- fully paid debt can remain with status `lunas`
+- fully paid debt may also be soft deleted/inactivated
+- debt history must remain intact
 
-- Add salary as income
-- Record daily spending
-- Track installment payments
-- Monitor monthly obligations
-- Compare spending against budget
-- View summary by month and category
+## Mutation
+- mutation is the main source of financial events
+- for MVP, mutation has only two types:
+  - `masuk`
+  - `keluar`
+- minimum fields:
+  - date
+  - time
+  - type
+  - wallet
+  - amount
+  - description
+  - related_to_debt (yes/no)
+- `masuk` increases wallet balance
+- `keluar` decreases wallet balance
+- outgoing mutation must be rejected if wallet balance is insufficient
+- mutation can be edited
+- mutation cannot be deleted
 
-## Future Direction
+## Mutation and Debt Interaction
 
-This project can grow into:
-- a personal financial operating system
-- a budgeting assistant backend
-- a simulation tool for debt payoff and buffer growth
+If mutation is related to debt, a simple toggle must exist:
 
-## Status
+- `related_to_debt = yes/no`
 
-In progress. Built step by step, improved when needed, shipped when ready.
+### If mutation is `keluar` and related to debt
+- user chooses source wallet
+- user chooses debt
+- wallet balance is reduced
+- debt remaining amount is reduced
+- mutation is recorded normally
 
-## Recommended Project Structure
+### If mutation is `masuk` and related to debt
+- user can choose existing debt
+- or create new debt
 
-See [docs/project-structure.md](/Users/alpardfm/Documents/Coding/Learn/moneypath-api/docs/project-structure.md) for the initial folder layout used as the base for this project.
+### If creating new debt from mutation
+- mutation amount and debt initial amount may be different
+- this supports real-world cases such as admin fees, deductions, or partial disbursement
 
-## Phase 1 Setup
+Required fields when creating debt from mutation:
+- debt name
+- initial debt amount
+- tenor
+- tenor unit
+- installment/payment amount
+- other required debt metadata
 
-Current foundation choices:
+---
 
-- Router: `chi`
-- Config: environment variables via `internal/config`
-- Database: PostgreSQL via `pgxpool`
-- Migrations: SQL files in `migrations/` compatible with `golang-migrate`
+## MVP Success Criteria
 
-## Environment
+Moneypath MVP is considered successful if:
 
-Copy `.env.example` and adjust the values for your local setup:
+- user can register and login
+- user can create wallets
+- user can record incoming and outgoing mutations
+- wallet balances update correctly
+- wallet cannot go negative
+- user can create and manage debts
+- mutations can interact with debts correctly
+- user can see a simple dashboard and summary
+- the API is deployable
+- the product is usable for daily personal finance tracking
 
-```env
-APP_ENV=development
-PORT=8080
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/moneypath?sslmode=disable
-```
+---
 
-## Run the API
+## Suggested Architecture
 
-```bash
-go run ./cmd/api
-```
+Recommended layered architecture:
 
-The API will start on `http://localhost:8080` by default.
+- handler / controller
+- service / use case
+- repository
+- domain / entity
+- database / migration
 
-## Health Check
+Suggested modules:
 
-```bash
-curl http://localhost:8080/health
-```
+- auth
+- profile
+- wallet
+- debt
+- mutation
+- dashboard
+- summary
 
-Expected response when the database is reachable:
+---
 
-```json
-{
-  "status": "ok",
-  "data": {
-    "service": "moneypath-api",
-    "database": "up"
-  }
-}
-```
+## Data Ownership
+
+All core data must belong to the authenticated user through `user_id`.
+
+This means:
+
+- user cannot access another user's wallets
+- user cannot access another user's debts
+- user cannot access another user's mutations
+- all reads and writes must enforce ownership rules
+
+---
+
+## Critical Engineering Concerns
+
+This project must handle carefully:
+
+- wallet balance consistency
+- mutation edit recalculation logic
+- debt remaining amount consistency
+- safe transactional updates
+- prevention of negative balances
+- prevention of cross-user data leakage
+
+---
+
+## QA Priorities
+
+### Tier 1
+- register/login works correctly
+- user isolation works correctly
+- incoming mutation updates wallet correctly
+- outgoing mutation updates wallet correctly
+- wallet cannot go negative
+- debt payment reduces remaining debt correctly
+- editing mutation does not corrupt wallet/debt state
+
+### Tier 2
+- creating debt from mutation is consistent
+- wallet cannot be deleted when balance is not zero
+- debt cannot be deleted when remaining debt is not zero
+- summary calculations are correct
+
+### Tier 3
+- filtering mutation history
+- profile update behavior
+- debt status display
+- inactive/archive display behavior
+
+---
+
+## Roadmap Overview
+
+### Phase 0
+Foundation and project setup
+
+### Phase 1
+Domain design and database schema
+
+### Phase 2
+Auth and profile
+
+### Phase 3
+Wallet module
+
+### Phase 4
+Debt module
+
+### Phase 5
+Mutation core
+
+### Phase 6
+Mutation and debt integration
+
+### Phase 7
+Summary and dashboard
+
+### Phase 8
+API hardening and testing
+
+### Phase 9
+Deployment and real-life usage
+
+---
+
+## Long-Term Intent
+
+Moneypath should become a real end-to-end product that is:
+
+- usable in daily life
+- technically trustworthy
+- deployable
+- testable
+- shareable for feedback
+- built with both engineering and product thinking
+
+---
+
+## One-Line System Decision
+
+Moneypath is a single-user personal finance product where wallets and debts are master data, all balance-changing events go through mutations, and the first release is focused on delivering a usable, trustworthy daily finance workflow rather than an overbuilt finance platform.

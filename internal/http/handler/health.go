@@ -28,27 +28,13 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
-	dbStatus := "up"
 	if err := h.checker.Ping(ctx); err != nil {
-		dbStatus = "down"
-		response.JSON(w, http.StatusServiceUnavailable, map[string]any{
-			"status": "degraded",
-			"data": map[string]any{
-				"service":  "moneypath-api",
-				"database": dbStatus,
-			},
-			"error": map[string]string{
-				"message": err.Error(),
-			},
-		})
+		response.Error(w, http.StatusServiceUnavailable, "database_unavailable", err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusOK, map[string]any{
-		"status": "ok",
-		"data": map[string]any{
-			"service":  "moneypath-api",
-			"database": dbStatus,
-		},
-	})
+	response.Success(w, http.StatusOK, map[string]any{
+		"service":  "moneypath-api",
+		"database": "up",
+	}, nil)
 }
