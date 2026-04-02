@@ -1,19 +1,20 @@
 # TODO — Personal Finance API
 
 ## Phase 1 — Foundation
-- [ ] Initialize project structure
-- [ ] Setup Go module
-- [ ] Choose router/framework
-- [ ] Setup configuration management
-- [ ] Setup PostgreSQL connection
-- [ ] Add migration system
-- [ ] Prepare base README
-- [ ] Create basic health check endpoint
-- [ ] Setup environment example file
+- [x] Initialize project structure
+- [x] Setup Go module
+- [x] Choose router/framework
+- [x] Setup configuration management
+- [x] Setup PostgreSQL connection
+- [x] Add migration system
+- [x] Prepare base README
+- [x] Create basic health check endpoint
+- [x] Setup environment example file
 
 ## Phase 2 — Core Domain Design
 - [ ] Define main entities and relationships
 - [ ] Design database schema
+- [ ] Create initial schema migration SQL files
 - [ ] Decide naming conventions
 - [ ] Decide API response format
 - [ ] Decide error handling format
@@ -77,6 +78,7 @@
 - [ ] Add dashboard endpoint
 - [ ] Add export-ready summary structure
 - [ ] Add API documentation
+- [ ] Add Swagger / OpenAPI documentation
 
 ## Phase 10 — Polish
 - [ ] Review naming consistency

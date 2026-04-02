@@ -36,7 +36,9 @@ Built as a practical system to manage income, expenses, obligations, and financi
 - PostgreSQL
 - REST API
 - Docker
-- SQL migration tool
+- `chi` router
+- `pgx` PostgreSQL driver
+- `golang-migrate` compatible SQL migrations
 - Optional: Swagger / Makefile / CI
 
 ## Project Scope
@@ -78,3 +80,52 @@ This project can grow into:
 ## Status
 
 In progress. Built step by step, improved when needed, shipped when ready.
+
+## Recommended Project Structure
+
+See [docs/project-structure.md](/Users/alpardfm/Documents/Coding/Learn/moneypath-api/docs/project-structure.md) for the initial folder layout used as the base for this project.
+
+## Phase 1 Setup
+
+Current foundation choices:
+
+- Router: `chi`
+- Config: environment variables via `internal/config`
+- Database: PostgreSQL via `pgxpool`
+- Migrations: SQL files in `migrations/` compatible with `golang-migrate`
+
+## Environment
+
+Copy `.env.example` and adjust the values for your local setup:
+
+```env
+APP_ENV=development
+PORT=8080
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/moneypath?sslmode=disable
+```
+
+## Run the API
+
+```bash
+go run ./cmd/api
+```
+
+The API will start on `http://localhost:8080` by default.
+
+## Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+Expected response when the database is reachable:
+
+```json
+{
+  "status": "ok",
+  "data": {
+    "service": "moneypath-api",
+    "database": "up"
+  }
+}
+```
