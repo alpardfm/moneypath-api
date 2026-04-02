@@ -1,0 +1,10 @@
+DROP INDEX IF EXISTS idx_mutations_debt_id_happened_at;
+DROP INDEX IF EXISTS idx_mutations_wallet_id_happened_at;
+DROP INDEX IF EXISTS idx_mutations_user_id_happened_at;
+DROP TABLE IF EXISTS mutations;
+DROP INDEX IF EXISTS idx_debts_user_id_is_active;
+DROP INDEX IF EXISTS idx_debts_user_id_status;
+DROP TABLE IF EXISTS debts;
+DROP INDEX IF EXISTS idx_wallets_user_id_is_active;
+DROP TABLE IF EXISTS wallets;
+DROP TABLE IF EXISTS users;
