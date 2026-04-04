@@ -1,0 +1,179 @@
+{
+  "info": {
+    "name": "Moneypath API",
+    "_postman_id": "f2e15f2f-fdf0-4f7e-8e91-4c3248cfd701",
+    "description": "Core API collection for local development after Phase 8 hardening.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "wallet_id",
+      "value": ""
+    },
+    {
+      "key": "debt_id",
+      "value": ""
+    },
+    {
+      "key": "mutation_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"username\": \"john\",\n  \"password\": \"password123\",\n  \"full_name\": \"John Doe\"\n}"
+            },
+            "url": "{{base_url}}/auth/register"
+          }
+        },
+        {
+          "name": "POST /auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email_or_username\": \"john\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{base_url}}/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Wallet",
+      "item": [
+        {
+          "name": "GET /wallets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{base_url}}/wallets?page=1&page_size=20"
+          }
+        },
+        {
+          "name": "POST /wallets",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cash\"\n}"
+            },
+            "url": "{{base_url}}/wallets"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Debt",
+      "item": [
+        {
+          "name": "GET /debts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{base_url}}/debts?page=1&page_size=20"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mutation",
+      "item": [
+        {
+          "name": "GET /mutations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{base_url}}/mutations?type=keluar&related_to_debt=true&sort_by=happened_at&sort_direction=desc&page=1&page_size=10"
+          }
+        },
+        {
+          "name": "POST /mutations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wallet_id\": \"{{wallet_id}}\",\n  \"type\": \"keluar\",\n  \"amount\": \"10000.00\",\n  \"description\": \"Pay installment\",\n  \"related_to_debt\": true,\n  \"debt_id\": \"{{debt_id}}\",\n  \"happened_at\": \"2026-04-04T10:00:00Z\"\n}"
+            },
+            "url": "{{base_url}}/mutations"
+          }
+        }
+      ]
+    }
+  ]
+}
