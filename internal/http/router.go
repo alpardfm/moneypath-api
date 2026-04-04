@@ -51,6 +51,16 @@ type MutationRoutes interface {
 	Delete(http.ResponseWriter, *http.Request)
 }
 
+// DashboardRoutes exposes the dashboard handlers used by the router.
+type DashboardRoutes interface {
+	Get(http.ResponseWriter, *http.Request)
+}
+
+// SummaryRoutes exposes the summary handlers used by the router.
+type SummaryRoutes interface {
+	Get(http.ResponseWriter, *http.Request)
+}
+
 // NewRouter creates the HTTP router used by the API.
 func NewRouter(
 	log *slog.Logger,
@@ -60,6 +70,8 @@ func NewRouter(
 	walletRoutes WalletRoutes,
 	debtRoutes DebtRoutes,
 	mutationRoutes MutationRoutes,
+	dashboardRoutes DashboardRoutes,
+	summaryRoutes SummaryRoutes,
 	authMiddleware func(http.Handler) http.Handler,
 ) http.Handler {
 	router := chi.NewRouter()
@@ -101,6 +113,8 @@ func NewRouter(
 			mutationRouter.Put("/{mutationID}", mutationRoutes.Update)
 			mutationRouter.Delete("/{mutationID}", mutationRoutes.Delete)
 		})
+		r.Get("/dashboard", dashboardRoutes.Get)
+		r.Get("/summary", summaryRoutes.Get)
 	})
 
 	return router
