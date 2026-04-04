@@ -38,10 +38,39 @@ func TestCreateRejectsDebtRelationInPhaseFive(t *testing.T) {
 		Amount:        "10.00",
 		Description:   "salary",
 		RelatedToDebt: true,
+		DebtID:        nil,
 		HappenedAt:    time.Now(),
 	})
-	if err != ErrDebtRelationNotSupported {
-		t.Fatalf("expected ErrDebtRelationNotSupported, got %v", err)
+	if err != ErrInvalidDebtRelation {
+		t.Fatalf("expected ErrInvalidDebtRelation, got %v", err)
+	}
+}
+
+func TestCreateAcceptsIncomingBorrowNew(t *testing.T) {
+	called := false
+	service := NewService(&stubRepository{
+		createFn: func(ctx context.Context, userID string, input UpsertInput) (*Mutation, error) {
+			called = true
+			return &Mutation{ID: "mutation-1", UserID: userID}, nil
+		},
+	})
+	_, err := service.Create(context.Background(), "user-1", UpsertInput{
+		WalletID:      "wallet-1",
+		Type:          "masuk",
+		Amount:        "100.00",
+		Description:   "loan disbursement",
+		RelatedToDebt: true,
+		NewDebt: &NewDebtInput{
+			Name:      "Laptop",
+			Principal: "120.00",
+		},
+		HappenedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !called {
+		t.Fatal("expected repository create to be called")
 	}
 }
 

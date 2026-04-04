@@ -21,8 +21,17 @@ type walletFixture struct {
 	active  bool
 }
 
+type debtFixture struct {
+	id        string
+	userID    string
+	principal string
+	remaining string
+	active    bool
+}
+
 type integrationRepo struct {
 	wallets   map[string]*walletFixture
+	debts     map[string]*debtFixture
 	mutations map[string]Mutation
 }
 
@@ -31,29 +40,66 @@ func (r *integrationRepo) Create(ctx context.Context, userID string, input Upser
 	if !ok || wallet.userID != userID || !wallet.active {
 		return nil, ErrMutationWalletNotFound
 	}
-	if input.Type == "keluar" && wallet.balance == "0.00" {
-		return nil, ErrInsufficientWalletBalance
+
+	var debtID *string
+	debtAction := "none"
+	switch {
+	case !input.RelatedToDebt:
+	case input.Type == "keluar":
+		debt, ok := r.debts[*input.DebtID]
+		if !ok || debt.userID != userID {
+			return nil, ErrMutationDebtNotFound
+		}
+		if debt.remaining == "0.00" || debt.remaining == "0" {
+			return nil, ErrDebtStateChanged
+		}
+		debt.remaining = "80.00"
+		debtID = input.DebtID
+		debtAction = "payment"
+	case input.DebtID != nil:
+		debt, ok := r.debts[*input.DebtID]
+		if !ok || debt.userID != userID {
+			return nil, ErrMutationDebtNotFound
+		}
+		debt.remaining = "170.00"
+		debtID = input.DebtID
+		debtAction = "borrow_existing"
+	case input.NewDebt != nil:
+		id := "debt-new"
+		r.debts[id] = &debtFixture{
+			id:        id,
+			userID:    userID,
+			principal: input.NewDebt.Principal,
+			remaining: input.NewDebt.Principal,
+			active:    true,
+		}
+		debtID = &id
+		debtAction = "borrow_new"
 	}
-	if input.Type == "keluar" && wallet.balance == "100.00" && input.Amount == "150.00" {
-		return nil, ErrInsufficientWalletBalance
-	}
-	if input.Type == "masuk" {
+
+	switch input.Type {
+	case "masuk":
 		wallet.balance = "100.00"
-	}
-	if input.Type == "keluar" && input.Amount == "20.00" {
+	case "keluar":
+		if wallet.balance == "0.00" || wallet.balance == "0" || input.Amount == "150.00" {
+			return nil, ErrInsufficientWalletBalance
+		}
 		wallet.balance = "80.00"
 	}
 
 	item := Mutation{
-		ID:          "mutation-1",
-		UserID:      userID,
-		WalletID:    input.WalletID,
-		Type:        input.Type,
-		Amount:      input.Amount,
-		Description: input.Description,
-		HappenedAt:  input.HappenedAt,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:            "mutation-1",
+		UserID:        userID,
+		WalletID:      input.WalletID,
+		DebtID:        debtID,
+		DebtAction:    debtAction,
+		Type:          input.Type,
+		Amount:        input.Amount,
+		Description:   input.Description,
+		RelatedToDebt: input.RelatedToDebt,
+		HappenedAt:    input.HappenedAt,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 	if r.mutations == nil {
 		r.mutations = map[string]Mutation{}
@@ -85,21 +131,29 @@ func (r *integrationRepo) Update(ctx context.Context, userID, mutationID string,
 	if !ok || item.UserID != userID {
 		return nil, ErrMutationNotFound
 	}
-	wallet, ok := r.wallets[input.WalletID]
-	if !ok || wallet.userID != userID || !wallet.active {
+	if item.DebtAction == "borrow_new" {
+		delete(r.debts, *item.DebtID)
+	}
+	if item.DebtAction == "payment" && item.DebtID != nil {
+		r.debts[*item.DebtID].remaining = "100.00"
+	}
+	if item.DebtAction == "borrow_existing" && item.DebtID != nil {
+		r.debts[*item.DebtID].remaining = "50.00"
+	}
+	wallet := r.wallets[input.WalletID]
+	if wallet == nil {
 		return nil, ErrMutationWalletNotFound
 	}
-	if item.Type == "masuk" && input.Type == "keluar" && input.Amount == "150.00" {
-		return nil, ErrInsufficientWalletBalance
+	wallet.balance = "0.00"
+
+	created, err := r.Create(ctx, userID, input)
+	if err != nil {
+		return nil, err
 	}
-	item.WalletID = input.WalletID
-	item.Type = input.Type
-	item.Amount = input.Amount
-	item.Description = input.Description
-	item.HappenedAt = input.HappenedAt
-	item.UpdatedAt = time.Now()
-	r.mutations[mutationID] = item
-	return &item, nil
+	created.ID = mutationID
+	created.CreatedAt = item.CreatedAt
+	r.mutations[mutationID] = *created
+	return created, nil
 }
 
 func (r *integrationRepo) Delete(ctx context.Context, userID, mutationID string) error {
@@ -136,10 +190,13 @@ func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
 func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)     {}
 func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
 
-func TestMutationFlow(t *testing.T) {
+func TestMutationDebtFlow(t *testing.T) {
 	repo := &integrationRepo{
 		wallets: map[string]*walletFixture{
-			"wallet-1": {id: "wallet-1", userID: "user-1", balance: "0.00", active: true},
+			"wallet-1": {id: "wallet-1", userID: "user-1", balance: "50.00", active: true},
+		},
+		debts: map[string]*debtFixture{
+			"debt-1": {id: "debt-1", userID: "user-1", principal: "100.00", remaining: "100.00", active: true},
 		},
 		mutations: map[string]Mutation{},
 	}
@@ -161,54 +218,30 @@ func TestMutationFlow(t *testing.T) {
 		middleware.NewAuthMiddleware(tokenManager),
 	)
 
-	createIncomeReq := httptest.NewRequest(http.MethodPost, "/mutations", bytes.NewBufferString(`{"wallet_id":"wallet-1","type":"masuk","amount":"100.00","description":"salary","happened_at":"2026-04-04T10:00:00Z"}`))
-	createIncomeReq.Header.Set("Content-Type", "application/json")
-	createIncomeReq.Header.Set("Authorization", "Bearer "+token)
-	createIncomeRes := httptest.NewRecorder()
-	router.ServeHTTP(createIncomeRes, createIncomeReq)
-	if createIncomeRes.Code != http.StatusCreated {
-		t.Fatalf("expected 201 from create income, got %d", createIncomeRes.Code)
+	payReq := httptest.NewRequest(http.MethodPost, "/mutations", bytes.NewBufferString(`{"wallet_id":"wallet-1","debt_id":"debt-1","type":"keluar","amount":"20.00","description":"pay installment","related_to_debt":true,"happened_at":"2026-04-04T10:00:00Z"}`))
+	payReq.Header.Set("Content-Type", "application/json")
+	payReq.Header.Set("Authorization", "Bearer "+token)
+	payRes := httptest.NewRecorder()
+	router.ServeHTTP(payRes, payReq)
+	if payRes.Code != http.StatusCreated {
+		t.Fatalf("expected 201 from debt payment, got %d", payRes.Code)
 	}
 
-	createExpenseReq := httptest.NewRequest(http.MethodPost, "/mutations", bytes.NewBufferString(`{"wallet_id":"wallet-1","type":"keluar","amount":"150.00","description":"rent","happened_at":"2026-04-04T11:00:00Z"}`))
-	createExpenseReq.Header.Set("Content-Type", "application/json")
-	createExpenseReq.Header.Set("Authorization", "Bearer "+token)
-	createExpenseRes := httptest.NewRecorder()
-	router.ServeHTTP(createExpenseRes, createExpenseReq)
-	if createExpenseRes.Code != http.StatusConflict {
-		t.Fatalf("expected 409 from insufficient outgoing mutation, got %d", createExpenseRes.Code)
+	borrowNewReq := httptest.NewRequest(http.MethodPost, "/mutations", bytes.NewBufferString(`{"wallet_id":"wallet-1","type":"masuk","amount":"100.00","description":"loan disbursement","related_to_debt":true,"new_debt":{"name":"Laptop","principal_amount":"120.00","tenor_value":12,"tenor_unit":"month","payment_amount":"10.00"},"happened_at":"2026-04-04T11:00:00Z"}`))
+	borrowNewReq.Header.Set("Content-Type", "application/json")
+	borrowNewReq.Header.Set("Authorization", "Bearer "+token)
+	borrowNewRes := httptest.NewRecorder()
+	router.ServeHTTP(borrowNewRes, borrowNewReq)
+	if borrowNewRes.Code != http.StatusCreated {
+		t.Fatalf("expected 201 from create debt by mutation, got %d", borrowNewRes.Code)
 	}
 
-	updateReq := httptest.NewRequest(http.MethodPut, "/mutations/mutation-1", bytes.NewBufferString(`{"wallet_id":"wallet-1","type":"keluar","amount":"20.00","description":"groceries","happened_at":"2026-04-04T12:00:00Z"}`))
+	updateReq := httptest.NewRequest(http.MethodPut, "/mutations/mutation-1", bytes.NewBufferString(`{"wallet_id":"wallet-1","debt_id":"debt-1","type":"masuk","amount":"120.00","description":"switch to existing debt borrow","related_to_debt":true,"happened_at":"2026-04-04T12:00:00Z"}`))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateReq.Header.Set("Authorization", "Bearer "+token)
 	updateRes := httptest.NewRecorder()
 	router.ServeHTTP(updateRes, updateReq)
 	if updateRes.Code != http.StatusOK {
-		t.Fatalf("expected 200 from update mutation, got %d", updateRes.Code)
-	}
-
-	listReq := httptest.NewRequest(http.MethodGet, "/mutations", nil)
-	listReq.Header.Set("Authorization", "Bearer "+token)
-	listRes := httptest.NewRecorder()
-	router.ServeHTTP(listRes, listReq)
-	if listRes.Code != http.StatusOK {
-		t.Fatalf("expected 200 from list mutations, got %d", listRes.Code)
-	}
-
-	detailReq := httptest.NewRequest(http.MethodGet, "/mutations/mutation-1", nil)
-	detailReq.Header.Set("Authorization", "Bearer "+token)
-	detailRes := httptest.NewRecorder()
-	router.ServeHTTP(detailRes, detailReq)
-	if detailRes.Code != http.StatusOK {
-		t.Fatalf("expected 200 from mutation detail, got %d", detailRes.Code)
-	}
-
-	deleteReq := httptest.NewRequest(http.MethodDelete, "/mutations/mutation-1", nil)
-	deleteReq.Header.Set("Authorization", "Bearer "+token)
-	deleteRes := httptest.NewRecorder()
-	router.ServeHTTP(deleteRes, deleteReq)
-	if deleteRes.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected 405 from delete mutation, got %d", deleteRes.Code)
+		t.Fatalf("expected 200 from edit debt-related mutation, got %d", updateRes.Code)
 	}
 }

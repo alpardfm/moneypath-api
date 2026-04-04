@@ -113,14 +113,18 @@ func (h *Handler) writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrMutationValidation):
 		response.Error(w, http.StatusBadRequest, "validation_error", "wallet_id, type, amount, description, and happened_at are required")
-	case errors.Is(err, ErrDebtRelationNotSupported):
-		response.Error(w, http.StatusBadRequest, "debt_relation_not_supported", err.Error())
+	case errors.Is(err, ErrInvalidDebtRelation):
+		response.Error(w, http.StatusBadRequest, "invalid_debt_relation", err.Error())
 	case errors.Is(err, ErrMutationNotFound):
 		response.Error(w, http.StatusNotFound, "mutation_not_found", err.Error())
 	case errors.Is(err, ErrMutationWalletNotFound):
 		response.Error(w, http.StatusNotFound, "wallet_not_found", err.Error())
+	case errors.Is(err, ErrMutationDebtNotFound):
+		response.Error(w, http.StatusNotFound, "debt_not_found", err.Error())
 	case errors.Is(err, ErrInsufficientWalletBalance):
 		response.Error(w, http.StatusConflict, "insufficient_wallet_balance", err.Error())
+	case errors.Is(err, ErrDebtStateChanged):
+		response.Error(w, http.StatusConflict, "debt_state_changed", err.Error())
 	case errors.Is(err, ErrMutationDeleteNotAllowed):
 		response.Error(w, http.StatusMethodNotAllowed, "mutation_delete_not_allowed", err.Error())
 	default:
@@ -134,6 +138,7 @@ func mutationResponse(item *Mutation) map[string]any {
 		"user_id":         item.UserID,
 		"wallet_id":       item.WalletID,
 		"debt_id":         item.DebtID,
+		"debt_action":     item.DebtAction,
 		"type":            item.Type,
 		"amount":          item.Amount,
 		"description":     item.Description,
