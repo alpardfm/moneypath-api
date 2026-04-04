@@ -7,7 +7,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 
+	"github.com/alpardfm/moneypath-api/internal/http/apidocs"
 	appmiddleware "github.com/alpardfm/moneypath-api/internal/http/middleware"
 )
 
@@ -83,6 +85,13 @@ func NewRouter(
 	router.Use(appmiddleware.RequestLogger(log))
 
 	router.Method(http.MethodGet, "/health", healthHandler)
+	router.Get("/openapi.json", apidocs.OpenAPI)
+	router.Get("/swagger", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/swagger/index.html", http.StatusTemporaryRedirect)
+	})
+	router.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/openapi.json"),
+	))
 	router.Route("/auth", func(r chi.Router) {
 		r.Post("/register", authRoutes.Register)
 		r.Post("/login", authRoutes.Login)

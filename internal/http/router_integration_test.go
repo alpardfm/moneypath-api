@@ -187,3 +187,41 @@ func TestAuthAndProfileFlow(t *testing.T) {
 		t.Fatalf("expected 200 from PUT /me/password, got %d", changePasswordRes.Code)
 	}
 }
+
+func TestSwaggerAndOpenAPIRoutes(t *testing.T) {
+	repo := &integrationRepo{}
+	tokenManager := auth.NewTokenManager("secret")
+	authHandler := auth.NewHandler(auth.NewService(repo, tokenManager))
+	profileHandler := profile.NewHandler(profile.NewService(repo))
+	router := NewRouter(
+		slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+		authHandler,
+		profileHandler,
+		noopWalletRoutes{},
+		noopDebtRoutes{},
+		noopMutationRoutes{},
+		noopDashboardRoutes{},
+		noopSummaryRoutes{},
+		middleware.NewAuthMiddleware(tokenManager),
+	)
+
+	openAPIReq := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	openAPIRes := httptest.NewRecorder()
+	router.ServeHTTP(openAPIRes, openAPIReq)
+	if openAPIRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /openapi.json, got %d", openAPIRes.Code)
+	}
+	if !bytes.Contains(openAPIRes.Body.Bytes(), []byte(`"openapi": "3.0.3"`)) {
+		t.Fatalf("expected openapi document, got %s", openAPIRes.Body.String())
+	}
+
+	swaggerReq := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
+	swaggerRes := httptest.NewRecorder()
+	router.ServeHTTP(swaggerRes, swaggerReq)
+	if swaggerRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /swagger/index.html, got %d", swaggerRes.Code)
+	}
+}
