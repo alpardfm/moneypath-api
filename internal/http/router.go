@@ -33,6 +33,15 @@ type WalletRoutes interface {
 	Inactivate(http.ResponseWriter, *http.Request)
 }
 
+// DebtRoutes exposes the debt handlers used by the router.
+type DebtRoutes interface {
+	Create(http.ResponseWriter, *http.Request)
+	List(http.ResponseWriter, *http.Request)
+	GetByID(http.ResponseWriter, *http.Request)
+	Update(http.ResponseWriter, *http.Request)
+	Inactivate(http.ResponseWriter, *http.Request)
+}
+
 // NewRouter creates the HTTP router used by the API.
 func NewRouter(
 	log *slog.Logger,
@@ -40,6 +49,7 @@ func NewRouter(
 	authRoutes AuthRoutes,
 	profileRoutes ProfileRoutes,
 	walletRoutes WalletRoutes,
+	debtRoutes DebtRoutes,
 	authMiddleware func(http.Handler) http.Handler,
 ) http.Handler {
 	router := chi.NewRouter()
@@ -66,6 +76,13 @@ func NewRouter(
 			walletRouter.Get("/{walletID}", walletRoutes.GetByID)
 			walletRouter.Put("/{walletID}", walletRoutes.Update)
 			walletRouter.Delete("/{walletID}", walletRoutes.Inactivate)
+		})
+		r.Route("/debts", func(debtRouter chi.Router) {
+			debtRouter.Post("/", debtRoutes.Create)
+			debtRouter.Get("/", debtRoutes.List)
+			debtRouter.Get("/{debtID}", debtRoutes.GetByID)
+			debtRouter.Put("/{debtID}", debtRoutes.Update)
+			debtRouter.Delete("/{debtID}", debtRoutes.Inactivate)
 		})
 	})
 

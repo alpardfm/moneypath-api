@@ -27,6 +27,14 @@ func (noopWalletRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
 func (noopWalletRoutes) Update(http.ResponseWriter, *http.Request)     {}
 func (noopWalletRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
 
+type noopDebtRoutes struct{}
+
+func (noopDebtRoutes) Create(http.ResponseWriter, *http.Request)     {}
+func (noopDebtRoutes) List(http.ResponseWriter, *http.Request)       {}
+func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
+func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)     {}
+func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+
 func (r *integrationRepo) CreateUser(ctx context.Context, user *auth.User) error {
 	if r.user != nil && r.user.Email == user.Email {
 		return auth.ErrEmailAlreadyUsed
@@ -102,6 +110,7 @@ func TestAuthAndProfileFlow(t *testing.T) {
 		authHandler,
 		profileHandler,
 		noopWalletRoutes{},
+		noopDebtRoutes{},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
 
