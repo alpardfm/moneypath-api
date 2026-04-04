@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/alpardfm/moneypath-api/internal/http/middleware"
+	"github.com/alpardfm/moneypath-api/internal/http/params"
 	"github.com/alpardfm/moneypath-api/internal/http/response"
 )
 
@@ -25,12 +26,12 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 	var input CreateInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid_json", "invalid request body")
+		response.InvalidJSON(w)
 		return
 	}
 	item, err := h.service.Create(r.Context(), userID, input)
@@ -45,26 +46,34 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
-	items, err := h.service.List(r.Context(), userID)
+	pagination := params.ParsePagination(r)
+	result, err := h.service.List(r.Context(), userID, ListOptions{
+		Page:     pagination.Page,
+		PageSize: pagination.PageSize,
+	})
 	if err != nil {
 		h.writeError(w, err)
 		return
 	}
-	data := make([]map[string]any, 0, len(items))
-	for i := range items {
-		data = append(data, debtResponse(&items[i]))
+	data := make([]map[string]any, 0, len(result.Items))
+	for i := range result.Items {
+		data = append(data, debtResponse(&result.Items[i]))
 	}
-	response.Success(w, http.StatusOK, data, nil)
+	response.Success(w, http.StatusOK, data, response.NewPaginationMeta(
+		pagination.Page,
+		pagination.PageSize,
+		result.TotalItems,
+	))
 }
 
 // GetByID returns a debt detail.
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 	item, err := h.service.GetByID(r.Context(), userID, chi.URLParam(r, "debtID"))
@@ -79,12 +88,12 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 	var input UpdateInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid_json", "invalid request body")
+		response.InvalidJSON(w)
 		return
 	}
 	item, err := h.service.Update(r.Context(), userID, chi.URLParam(r, "debtID"), input)
@@ -99,7 +108,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Inactivate(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 	if err := h.service.Inactivate(r.Context(), userID, chi.URLParam(r, "debtID")); err != nil {
@@ -112,13 +121,13 @@ func (h *Handler) Inactivate(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrDebtValidation):
-		response.Error(w, http.StatusBadRequest, "validation_error", "debt name and principal amount are required")
+		response.ValidationError(w, "debt name and principal amount are required")
 	case errors.Is(err, ErrDebtNotFound):
 		response.Error(w, http.StatusNotFound, "debt_not_found", err.Error())
 	case errors.Is(err, ErrDebtRemainingNotZero):
 		response.Error(w, http.StatusConflict, "debt_remaining_not_zero", err.Error())
 	default:
-		response.Error(w, http.StatusInternalServerError, "internal_error", "internal server error")
+		response.InternalError(w)
 	}
 }
 

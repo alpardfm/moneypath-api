@@ -22,23 +22,23 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 
 	filter, err := parseFilter(r)
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid_period", err.Error())
+		response.ValidationError(w, err.Error())
 		return
 	}
 
 	report, err := h.service.GetReport(r.Context(), userID, filter)
 	if err != nil {
 		if err == ErrInvalidPeriod {
-			response.Error(w, http.StatusBadRequest, "invalid_period", err.Error())
+			response.ValidationError(w, err.Error())
 			return
 		}
-		response.Error(w, http.StatusInternalServerError, "internal_error", "internal server error")
+		response.InternalError(w)
 		return
 	}
 

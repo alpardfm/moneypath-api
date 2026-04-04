@@ -42,15 +42,22 @@ func (s *Service) Create(ctx context.Context, userID string, input CreateInput) 
 }
 
 // List lists debts for the authenticated user.
-func (s *Service) List(ctx context.Context, userID string) ([]Debt, error) {
-	items, err := s.repo.List(ctx, userID)
+func (s *Service) List(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	if options.Page <= 0 {
+		options.Page = 1
+	}
+	if options.PageSize <= 0 {
+		options.PageSize = 20
+	}
+
+	result, err := s.repo.List(ctx, userID, options)
 	if err != nil {
 		return nil, err
 	}
-	for i := range items {
-		items[i].Status = deriveStatus(items[i].RemainingAmount, items[i].IsActive)
+	for i := range result.Items {
+		result.Items[i].Status = deriveStatus(result.Items[i].RemainingAmount, result.Items[i].IsActive)
 	}
-	return items, nil
+	return result, nil
 }
 
 // GetByID returns a debt by id for the authenticated user.

@@ -24,7 +24,7 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 
@@ -41,13 +41,13 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 
 	var input UpdateProfileInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid_json", "invalid request body")
+		response.InvalidJSON(w)
 		return
 	}
 
@@ -64,13 +64,13 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 
 	var input ChangePasswordInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid_json", "invalid request body")
+		response.InvalidJSON(w)
 		return
 	}
 
@@ -85,7 +85,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, auth.ErrValidation):
-		response.Error(w, http.StatusBadRequest, "validation_error", "all fields are required")
+		response.ValidationError(w, "all fields are required")
 	case errors.Is(err, auth.ErrUserNotFound):
 		response.Error(w, http.StatusNotFound, "user_not_found", err.Error())
 	case errors.Is(err, auth.ErrEmailAlreadyUsed):
@@ -95,7 +95,7 @@ func (h *Handler) writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		response.Error(w, http.StatusUnauthorized, "invalid_credentials", err.Error())
 	default:
-		response.Error(w, http.StatusInternalServerError, "internal_error", "internal server error")
+		response.InternalError(w)
 	}
 }
 

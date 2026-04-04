@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/alpardfm/moneypath-api/internal/http/middleware"
+	"github.com/alpardfm/moneypath-api/internal/http/params"
 	"github.com/alpardfm/moneypath-api/internal/http/response"
 )
 
@@ -25,13 +26,13 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 
 	var input CreateInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid_json", "invalid request body")
+		response.InvalidJSON(w)
 		return
 	}
 
@@ -48,28 +49,36 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListActive(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 
-	wallets, err := h.service.ListActive(r.Context(), userID)
+	pagination := params.ParsePagination(r)
+	result, err := h.service.ListActive(r.Context(), userID, ListOptions{
+		Page:     pagination.Page,
+		PageSize: pagination.PageSize,
+	})
 	if err != nil {
 		h.writeError(w, err)
 		return
 	}
 
-	items := make([]map[string]any, 0, len(wallets))
-	for _, wallet := range wallets {
+	items := make([]map[string]any, 0, len(result.Items))
+	for _, wallet := range result.Items {
 		items = append(items, walletResponse(&wallet))
 	}
-	response.Success(w, http.StatusOK, items, nil)
+	response.Success(w, http.StatusOK, items, response.NewPaginationMeta(
+		pagination.Page,
+		pagination.PageSize,
+		result.TotalItems,
+	))
 }
 
 // GetByID returns one wallet by id.
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 
@@ -86,13 +95,13 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 
 	var input UpdateInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid_json", "invalid request body")
+		response.InvalidJSON(w)
 		return
 	}
 
@@ -109,7 +118,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Inactivate(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		response.Unauthorized(w)
 		return
 	}
 
@@ -125,7 +134,7 @@ func (h *Handler) Inactivate(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrWalletValidation):
-		response.Error(w, http.StatusBadRequest, "validation_error", "wallet name is required")
+		response.ValidationError(w, "wallet name is required")
 	case errors.Is(err, ErrWalletNotFound):
 		response.Error(w, http.StatusNotFound, "wallet_not_found", err.Error())
 	case errors.Is(err, ErrWalletNameAlreadyUsed):
@@ -133,7 +142,7 @@ func (h *Handler) writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrWalletBalanceNotZero):
 		response.Error(w, http.StatusConflict, "wallet_balance_not_zero", err.Error())
 	default:
-		response.Error(w, http.StatusInternalServerError, "internal_error", "internal server error")
+		response.InternalError(w)
 	}
 }
 
