@@ -24,12 +24,22 @@ type ProfileRoutes interface {
 	ChangePassword(http.ResponseWriter, *http.Request)
 }
 
+// WalletRoutes exposes the wallet handlers used by the router.
+type WalletRoutes interface {
+	Create(http.ResponseWriter, *http.Request)
+	ListActive(http.ResponseWriter, *http.Request)
+	GetByID(http.ResponseWriter, *http.Request)
+	Update(http.ResponseWriter, *http.Request)
+	Inactivate(http.ResponseWriter, *http.Request)
+}
+
 // NewRouter creates the HTTP router used by the API.
 func NewRouter(
 	log *slog.Logger,
 	healthHandler http.Handler,
 	authRoutes AuthRoutes,
 	profileRoutes ProfileRoutes,
+	walletRoutes WalletRoutes,
 	authMiddleware func(http.Handler) http.Handler,
 ) http.Handler {
 	router := chi.NewRouter()
@@ -50,6 +60,13 @@ func NewRouter(
 		r.Get("/me", profileRoutes.GetMe)
 		r.Put("/me", profileRoutes.UpdateMe)
 		r.Put("/me/password", profileRoutes.ChangePassword)
+		r.Route("/wallets", func(walletRouter chi.Router) {
+			walletRouter.Post("/", walletRoutes.Create)
+			walletRouter.Get("/", walletRoutes.ListActive)
+			walletRouter.Get("/{walletID}", walletRoutes.GetByID)
+			walletRouter.Put("/{walletID}", walletRoutes.Update)
+			walletRouter.Delete("/{walletID}", walletRoutes.Inactivate)
+		})
 	})
 
 	return router

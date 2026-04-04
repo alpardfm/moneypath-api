@@ -12,6 +12,7 @@ import (
 	appmiddleware "github.com/alpardfm/moneypath-api/internal/http/middleware"
 	"github.com/alpardfm/moneypath-api/internal/module/auth"
 	"github.com/alpardfm/moneypath-api/internal/module/profile"
+	"github.com/alpardfm/moneypath-api/internal/module/wallet"
 	"github.com/alpardfm/moneypath-api/internal/platform/database"
 	"github.com/alpardfm/moneypath-api/internal/platform/logger"
 )
@@ -36,12 +37,15 @@ func New(cfg *config.Config) (*App, error) {
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret)
 	authService := auth.NewService(authRepo, tokenManager)
 	profileService := profile.NewService(authRepo)
+	walletRepo := wallet.NewPostgresRepository(db.Pool())
+	walletService := wallet.NewService(walletRepo)
 
 	healthHandler := handler.NewHealthHandler(db)
 	authHandler := auth.NewHandler(authService)
 	profileHandler := profile.NewHandler(profileService)
+	walletHandler := wallet.NewHandler(walletService)
 	authMiddleware := appmiddleware.NewAuthMiddleware(tokenManager)
-	router := apihttp.NewRouter(log, healthHandler, authHandler, profileHandler, authMiddleware)
+	router := apihttp.NewRouter(log, healthHandler, authHandler, profileHandler, walletHandler, authMiddleware)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%s", cfg.Port),
