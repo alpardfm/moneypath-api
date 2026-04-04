@@ -96,6 +96,14 @@ func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
 func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)     {}
 func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
 
+type noopMutationRoutes struct{}
+
+func (noopMutationRoutes) Create(http.ResponseWriter, *http.Request)  {}
+func (noopMutationRoutes) List(http.ResponseWriter, *http.Request)    {}
+func (noopMutationRoutes) GetByID(http.ResponseWriter, *http.Request) {}
+func (noopMutationRoutes) Update(http.ResponseWriter, *http.Request)  {}
+func (noopMutationRoutes) Delete(http.ResponseWriter, *http.Request)  {}
+
 func TestWalletFlow(t *testing.T) {
 	repo := &integrationRepo{}
 	handler := NewHandler(NewService(repo))
@@ -112,6 +120,7 @@ func TestWalletFlow(t *testing.T) {
 		noopProfileRoutes{},
 		handler,
 		noopDebtRoutes{},
+		noopMutationRoutes{},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
 

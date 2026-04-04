@@ -42,6 +42,15 @@ type DebtRoutes interface {
 	Inactivate(http.ResponseWriter, *http.Request)
 }
 
+// MutationRoutes exposes the mutation handlers used by the router.
+type MutationRoutes interface {
+	Create(http.ResponseWriter, *http.Request)
+	List(http.ResponseWriter, *http.Request)
+	GetByID(http.ResponseWriter, *http.Request)
+	Update(http.ResponseWriter, *http.Request)
+	Delete(http.ResponseWriter, *http.Request)
+}
+
 // NewRouter creates the HTTP router used by the API.
 func NewRouter(
 	log *slog.Logger,
@@ -50,6 +59,7 @@ func NewRouter(
 	profileRoutes ProfileRoutes,
 	walletRoutes WalletRoutes,
 	debtRoutes DebtRoutes,
+	mutationRoutes MutationRoutes,
 	authMiddleware func(http.Handler) http.Handler,
 ) http.Handler {
 	router := chi.NewRouter()
@@ -83,6 +93,13 @@ func NewRouter(
 			debtRouter.Get("/{debtID}", debtRoutes.GetByID)
 			debtRouter.Put("/{debtID}", debtRoutes.Update)
 			debtRouter.Delete("/{debtID}", debtRoutes.Inactivate)
+		})
+		r.Route("/mutations", func(mutationRouter chi.Router) {
+			mutationRouter.Post("/", mutationRoutes.Create)
+			mutationRouter.Get("/", mutationRoutes.List)
+			mutationRouter.Get("/{mutationID}", mutationRoutes.GetByID)
+			mutationRouter.Put("/{mutationID}", mutationRoutes.Update)
+			mutationRouter.Delete("/{mutationID}", mutationRoutes.Delete)
 		})
 	})
 

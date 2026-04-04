@@ -12,6 +12,7 @@ import (
 	appmiddleware "github.com/alpardfm/moneypath-api/internal/http/middleware"
 	"github.com/alpardfm/moneypath-api/internal/module/auth"
 	"github.com/alpardfm/moneypath-api/internal/module/debt"
+	"github.com/alpardfm/moneypath-api/internal/module/mutation"
 	"github.com/alpardfm/moneypath-api/internal/module/profile"
 	"github.com/alpardfm/moneypath-api/internal/module/wallet"
 	"github.com/alpardfm/moneypath-api/internal/platform/database"
@@ -42,14 +43,17 @@ func New(cfg *config.Config) (*App, error) {
 	walletService := wallet.NewService(walletRepo)
 	debtRepo := debt.NewPostgresRepository(db.Pool())
 	debtService := debt.NewService(debtRepo)
+	mutationRepo := mutation.NewPostgresRepository(db.Pool())
+	mutationService := mutation.NewService(mutationRepo)
 
 	healthHandler := handler.NewHealthHandler(db)
 	authHandler := auth.NewHandler(authService)
 	profileHandler := profile.NewHandler(profileService)
 	walletHandler := wallet.NewHandler(walletService)
 	debtHandler := debt.NewHandler(debtService)
+	mutationHandler := mutation.NewHandler(mutationService)
 	authMiddleware := appmiddleware.NewAuthMiddleware(tokenManager)
-	router := apihttp.NewRouter(log, healthHandler, authHandler, profileHandler, walletHandler, debtHandler, authMiddleware)
+	router := apihttp.NewRouter(log, healthHandler, authHandler, profileHandler, walletHandler, debtHandler, mutationHandler, authMiddleware)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%s", cfg.Port),
