@@ -9,6 +9,9 @@ import (
 	"github.com/alpardfm/moneypath-api/internal/config"
 	apihttp "github.com/alpardfm/moneypath-api/internal/http"
 	"github.com/alpardfm/moneypath-api/internal/http/handler"
+	appmiddleware "github.com/alpardfm/moneypath-api/internal/http/middleware"
+	"github.com/alpardfm/moneypath-api/internal/module/auth"
+	"github.com/alpardfm/moneypath-api/internal/module/profile"
 	"github.com/alpardfm/moneypath-api/internal/platform/database"
 	"github.com/alpardfm/moneypath-api/internal/platform/logger"
 )
@@ -29,8 +32,16 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("create postgres connection: %w", err)
 	}
 
+	authRepo := auth.NewPostgresRepository(db.Pool())
+	tokenManager := auth.NewTokenManager(cfg.JWTSecret)
+	authService := auth.NewService(authRepo, tokenManager)
+	profileService := profile.NewService(authRepo)
+
 	healthHandler := handler.NewHealthHandler(db)
-	router := apihttp.NewRouter(log, healthHandler)
+	authHandler := auth.NewHandler(authService)
+	profileHandler := profile.NewHandler(profileService)
+	authMiddleware := appmiddleware.NewAuthMiddleware(tokenManager)
+	router := apihttp.NewRouter(log, healthHandler, authHandler, profileHandler, authMiddleware)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%s", cfg.Port),

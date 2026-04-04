@@ -36,6 +36,15 @@ func (p *Postgres) Ping(ctx context.Context) error {
 	return p.pool.Ping(ctx)
 }
 
+// Pool exposes the shared pgx pool for repositories.
+func (p *Postgres) Pool() *pgxpool.Pool {
+	if p == nil {
+		return nil
+	}
+
+	return p.pool
+}
+
 // Close closes the PostgreSQL pool.
 func (p *Postgres) Close() {
 	if p == nil || p.pool == nil {
