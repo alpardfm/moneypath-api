@@ -56,9 +56,35 @@ func validateInput(input UpsertInput) error {
 	if input.Type != "masuk" && input.Type != "keluar" {
 		return ErrMutationValidation
 	}
-	if input.RelatedToDebt {
-		return ErrDebtRelationNotSupported
+
+	if !input.RelatedToDebt {
+		if input.DebtID != nil || input.NewDebt != nil {
+			return ErrInvalidDebtRelation
+		}
+		return nil
 	}
+
+	if input.Type == "keluar" {
+		if input.DebtID == nil || strings.TrimSpace(*input.DebtID) == "" || input.NewDebt != nil {
+			return ErrInvalidDebtRelation
+		}
+		return nil
+	}
+
+	if input.Type == "masuk" {
+		hasDebtID := input.DebtID != nil && strings.TrimSpace(*input.DebtID) != ""
+		hasNewDebt := input.NewDebt != nil
+		if hasDebtID == hasNewDebt {
+			return ErrInvalidDebtRelation
+		}
+		if hasNewDebt {
+			if strings.TrimSpace(input.NewDebt.Name) == "" || strings.TrimSpace(input.NewDebt.Principal) == "" {
+				return ErrMutationValidation
+			}
+		}
+		return nil
+	}
+
 	return nil
 }
 
@@ -66,5 +92,25 @@ func sanitizeInput(input UpsertInput) UpsertInput {
 	input.WalletID = strings.TrimSpace(input.WalletID)
 	input.Amount = strings.TrimSpace(input.Amount)
 	input.Description = strings.TrimSpace(input.Description)
+	if input.DebtID != nil {
+		debtID := strings.TrimSpace(*input.DebtID)
+		input.DebtID = &debtID
+	}
+	if input.NewDebt != nil {
+		input.NewDebt.Name = strings.TrimSpace(input.NewDebt.Name)
+		input.NewDebt.Principal = strings.TrimSpace(input.NewDebt.Principal)
+		if input.NewDebt.TenorUnit != nil {
+			trimmed := strings.TrimSpace(*input.NewDebt.TenorUnit)
+			input.NewDebt.TenorUnit = &trimmed
+		}
+		if input.NewDebt.PaymentAmount != nil {
+			trimmed := strings.TrimSpace(*input.NewDebt.PaymentAmount)
+			input.NewDebt.PaymentAmount = &trimmed
+		}
+		if input.NewDebt.Note != nil {
+			trimmed := strings.TrimSpace(*input.NewDebt.Note)
+			input.NewDebt.Note = &trimmed
+		}
+	}
 	return input
 }

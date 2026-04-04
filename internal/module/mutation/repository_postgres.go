@@ -3,6 +3,7 @@ package mutation
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,6 +15,16 @@ type walletState struct {
 	Balance   string
 	IsActive  bool
 	DeletedAt any
+}
+
+type debtState struct {
+	ID              string
+	UserID          string
+	PrincipalAmount string
+	RemainingAmount string
+	Status          string
+	IsActive        bool
+	DeletedAt       any
 }
 
 // PostgresRepository implements mutation persistence using PostgreSQL.
@@ -33,25 +44,26 @@ func (r *PostgresRepository) Create(ctx context.Context, userID string, input Up
 	}
 	defer tx.Rollback(ctx)
 
-	wallet, err := r.lockWallet(ctx, tx, userID, input.WalletID)
-	if err != nil {
+	if _, err := r.lockWallet(ctx, tx, userID, input.WalletID); err != nil {
 		return nil, err
 	}
 
-	if err := r.applyWalletEffect(ctx, tx, wallet.ID, input.Type, input.Amount, false); err != nil {
+	mutationDebtID, debtAction, err := r.applyNewState(ctx, tx, userID, input)
+	if err != nil {
 		return nil, err
 	}
 
 	item := &Mutation{}
 	err = tx.QueryRow(ctx, `
-		INSERT INTO mutations (user_id, wallet_id, mutation_type, amount, description, related_to_debt, happened_at)
-		VALUES ($1, $2, $3, $4::numeric, $5, FALSE, $6)
-		RETURNING id, user_id, wallet_id, debt_id, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
-	`, userID, input.WalletID, input.Type, input.Amount, input.Description, input.HappenedAt).Scan(
+		INSERT INTO mutations (user_id, wallet_id, debt_id, debt_action, mutation_type, amount, description, related_to_debt, happened_at)
+		VALUES ($1, $2, $3, $4, $5, $6::numeric, $7, $8, $9)
+		RETURNING id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+	`, userID, input.WalletID, mutationDebtID, debtAction, input.Type, input.Amount, input.Description, input.RelatedToDebt, input.HappenedAt).Scan(
 		&item.ID,
 		&item.UserID,
 		&item.WalletID,
 		&item.DebtID,
+		&item.DebtAction,
 		&item.Type,
 		&item.Amount,
 		&item.Description,
@@ -73,7 +85,7 @@ func (r *PostgresRepository) Create(ctx context.Context, userID string, input Up
 
 func (r *PostgresRepository) List(ctx context.Context, userID string) ([]Mutation, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, user_id, wallet_id, debt_id, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+		SELECT id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
 		FROM mutations
 		WHERE user_id = $1
 		ORDER BY happened_at DESC, created_at DESC
@@ -91,6 +103,7 @@ func (r *PostgresRepository) List(ctx context.Context, userID string) ([]Mutatio
 			&item.UserID,
 			&item.WalletID,
 			&item.DebtID,
+			&item.DebtAction,
 			&item.Type,
 			&item.Amount,
 			&item.Description,
@@ -109,7 +122,7 @@ func (r *PostgresRepository) List(ctx context.Context, userID string) ([]Mutatio
 func (r *PostgresRepository) GetByID(ctx context.Context, userID, mutationID string) (*Mutation, error) {
 	item := &Mutation{}
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, user_id, wallet_id, debt_id, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+		SELECT id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
 		FROM mutations
 		WHERE id = $1 AND user_id = $2
 	`, mutationID, userID).Scan(
@@ -117,6 +130,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, userID, mutationID str
 		&item.UserID,
 		&item.WalletID,
 		&item.DebtID,
+		&item.DebtAction,
 		&item.Type,
 		&item.Amount,
 		&item.Description,
@@ -149,18 +163,18 @@ func (r *PostgresRepository) Update(ctx context.Context, userID, mutationID stri
 	if _, err := r.lockWallet(ctx, tx, userID, current.WalletID); err != nil {
 		return nil, err
 	}
-
-	if err := r.applyWalletEffect(ctx, tx, current.WalletID, current.Type, current.Amount, true); err != nil {
-		return nil, err
-	}
-
 	if input.WalletID != current.WalletID {
 		if _, err := r.lockWallet(ctx, tx, userID, input.WalletID); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := r.applyWalletEffect(ctx, tx, input.WalletID, input.Type, input.Amount, false); err != nil {
+	if err := r.reverseCurrentState(ctx, tx, userID, current); err != nil {
+		return nil, err
+	}
+
+	mutationDebtID, debtAction, err := r.applyNewState(ctx, tx, userID, input)
+	if err != nil {
 		return nil, err
 	}
 
@@ -168,18 +182,22 @@ func (r *PostgresRepository) Update(ctx context.Context, userID, mutationID stri
 	err = tx.QueryRow(ctx, `
 		UPDATE mutations
 		SET wallet_id = $3,
-		    mutation_type = $4,
-		    amount = $5::numeric,
-		    description = $6,
-		    happened_at = $7,
+		    debt_id = $4,
+		    debt_action = $5,
+		    mutation_type = $6,
+		    amount = $7::numeric,
+		    description = $8,
+		    related_to_debt = $9,
+		    happened_at = $10,
 		    updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
-		RETURNING id, user_id, wallet_id, debt_id, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
-	`, mutationID, userID, input.WalletID, input.Type, input.Amount, input.Description, input.HappenedAt).Scan(
+		RETURNING id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+	`, mutationID, userID, input.WalletID, mutationDebtID, debtAction, input.Type, input.Amount, input.Description, input.RelatedToDebt, input.HappenedAt).Scan(
 		&item.ID,
 		&item.UserID,
 		&item.WalletID,
 		&item.DebtID,
+		&item.DebtAction,
 		&item.Type,
 		&item.Amount,
 		&item.Description,
@@ -210,7 +228,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, userID, mutationID stri
 func (r *PostgresRepository) getByIDForUpdate(ctx context.Context, tx pgx.Tx, userID, mutationID string) (*Mutation, error) {
 	item := &Mutation{}
 	err := tx.QueryRow(ctx, `
-		SELECT id, user_id, wallet_id, debt_id, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+		SELECT id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
 		FROM mutations
 		WHERE id = $1 AND user_id = $2
 		FOR UPDATE
@@ -219,6 +237,7 @@ func (r *PostgresRepository) getByIDForUpdate(ctx context.Context, tx pgx.Tx, us
 		&item.UserID,
 		&item.WalletID,
 		&item.DebtID,
+		&item.DebtAction,
 		&item.Type,
 		&item.Amount,
 		&item.Description,
@@ -253,6 +272,178 @@ func (r *PostgresRepository) lockWallet(ctx context.Context, tx pgx.Tx, userID, 
 	return wallet, nil
 }
 
+func (r *PostgresRepository) lockDebt(ctx context.Context, tx pgx.Tx, userID, debtID string) (*debtState, error) {
+	item := &debtState{}
+	err := tx.QueryRow(ctx, `
+		SELECT id, user_id, principal_amount::text, remaining_amount::text, status, is_active, deleted_at
+		FROM debts
+		WHERE id = $1 AND user_id = $2
+		FOR UPDATE
+	`, debtID, userID).Scan(
+		&item.ID,
+		&item.UserID,
+		&item.PrincipalAmount,
+		&item.RemainingAmount,
+		&item.Status,
+		&item.IsActive,
+		&item.DeletedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrMutationDebtNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+func (r *PostgresRepository) applyNewState(ctx context.Context, tx pgx.Tx, userID string, input UpsertInput) (*string, string, error) {
+	if err := r.applyWalletEffect(ctx, tx, input.WalletID, input.Type, input.Amount, false); err != nil {
+		return nil, "", err
+	}
+
+	if !input.RelatedToDebt {
+		return nil, "none", nil
+	}
+
+	if input.Type == "keluar" {
+		debt, err := r.lockDebt(ctx, tx, userID, *input.DebtID)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := r.applyDebtDelta(ctx, tx, debt.ID, input.Amount, true); err != nil {
+			return nil, "", err
+		}
+		return input.DebtID, "payment", nil
+	}
+
+	if input.DebtID != nil {
+		debt, err := r.lockDebt(ctx, tx, userID, *input.DebtID)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := r.applyDebtDelta(ctx, tx, debt.ID, input.Amount, false); err != nil {
+			return nil, "", err
+		}
+		return input.DebtID, "borrow_existing", nil
+	}
+
+	debtID, err := r.createDebtFromMutation(ctx, tx, userID, input.NewDebt)
+	if err != nil {
+		return nil, "", err
+	}
+	return &debtID, "borrow_new", nil
+}
+
+func (r *PostgresRepository) reverseCurrentState(ctx context.Context, tx pgx.Tx, userID string, current *Mutation) error {
+	if err := r.applyWalletEffect(ctx, tx, current.WalletID, current.Type, current.Amount, true); err != nil {
+		return err
+	}
+
+	if !current.RelatedToDebt || current.DebtID == nil {
+		return nil
+	}
+
+	switch current.DebtAction {
+	case "payment":
+		return r.applyDebtDelta(ctx, tx, *current.DebtID, current.Amount, false)
+	case "borrow_existing":
+		return r.reverseBorrowExisting(ctx, tx, userID, *current.DebtID, current.Amount)
+	case "borrow_new":
+		return r.reverseBorrowNew(ctx, tx, userID, current.ID, *current.DebtID)
+	default:
+		return nil
+	}
+}
+
+func (r *PostgresRepository) reverseBorrowExisting(ctx context.Context, tx pgx.Tx, userID, debtID, amount string) error {
+	debt, err := r.lockDebt(ctx, tx, userID, debtID)
+	if err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `
+		UPDATE debts
+		SET remaining_amount = remaining_amount - $2::numeric,
+		    status = CASE WHEN remaining_amount - $2::numeric = 0 THEN 'lunas' ELSE 'active' END,
+		    updated_at = NOW()
+		WHERE id = $1 AND remaining_amount >= $2::numeric
+	`, debt.ID, amount)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrDebtStateChanged
+	}
+	return nil
+}
+
+func (r *PostgresRepository) reverseBorrowNew(ctx context.Context, tx pgx.Tx, userID, mutationID, debtID string) error {
+	var otherCount int
+	err := tx.QueryRow(ctx, `
+		SELECT COUNT(1)
+		FROM mutations
+		WHERE debt_id = $1 AND id <> $2
+	`, debtID, mutationID).Scan(&otherCount)
+	if err != nil {
+		return err
+	}
+	if otherCount > 0 {
+		return ErrDebtStateChanged
+	}
+
+	tag, err := tx.Exec(ctx, `DELETE FROM debts WHERE id = $1 AND user_id = $2`, debtID, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrMutationDebtNotFound
+	}
+	return nil
+}
+
+func (r *PostgresRepository) createDebtFromMutation(ctx context.Context, tx pgx.Tx, userID string, input *NewDebtInput) (string, error) {
+	var debtID string
+	err := tx.QueryRow(ctx, `
+		INSERT INTO debts (user_id, name, principal_amount, remaining_amount, tenor_value, tenor_unit, payment_amount, status, note)
+		VALUES ($1, $2, $3::numeric, $3::numeric, $4, $5, $6::numeric, 'active', $7)
+		RETURNING id
+	`, userID, input.Name, input.Principal, input.TenorValue, input.TenorUnit, input.PaymentAmount, input.Note).Scan(&debtID)
+	if err != nil {
+		return "", err
+	}
+	return debtID, nil
+}
+
+func (r *PostgresRepository) applyDebtDelta(ctx context.Context, tx pgx.Tx, debtID, amount string, decrease bool) error {
+	if decrease {
+		tag, err := tx.Exec(ctx, `
+			UPDATE debts
+			SET remaining_amount = remaining_amount - $2::numeric,
+			    status = CASE WHEN remaining_amount - $2::numeric = 0 THEN 'lunas' ELSE 'active' END,
+			    updated_at = NOW()
+			WHERE id = $1 AND remaining_amount >= $2::numeric
+		`, debtID, amount)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrDebtStateChanged
+		}
+		return nil
+	}
+
+	_, err := tx.Exec(ctx, `
+		UPDATE debts
+		SET remaining_amount = remaining_amount + $2::numeric,
+		    status = 'active',
+		    is_active = TRUE,
+		    deleted_at = NULL,
+		    updated_at = NOW()
+		WHERE id = $1
+	`, debtID, amount)
+	return err
+}
+
 func (r *PostgresRepository) applyWalletEffect(ctx context.Context, tx pgx.Tx, walletID, mutationType, amount string, reverse bool) error {
 	switch mutationType {
 	case "masuk":
@@ -282,4 +473,9 @@ func (r *PostgresRepository) applyWalletEffect(ctx context.Context, tx pgx.Tx, w
 	default:
 		return ErrMutationValidation
 	}
+}
+
+func ptrString(value string) *string {
+	v := strings.TrimSpace(value)
+	return &v
 }
