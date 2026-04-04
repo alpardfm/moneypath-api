@@ -130,6 +130,7 @@ func TestAuthAndProfileFlow(t *testing.T) {
 		noopMutationRoutes{},
 		noopDashboardRoutes{},
 		noopSummaryRoutes{},
+		[]string{"http://localhost:5173"},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
 
@@ -205,6 +206,7 @@ func TestSwaggerAndOpenAPIRoutes(t *testing.T) {
 		noopMutationRoutes{},
 		noopDashboardRoutes{},
 		noopSummaryRoutes{},
+		[]string{"http://localhost:5173"},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
 
@@ -223,5 +225,41 @@ func TestSwaggerAndOpenAPIRoutes(t *testing.T) {
 	router.ServeHTTP(swaggerRes, swaggerReq)
 	if swaggerRes.Code != http.StatusOK {
 		t.Fatalf("expected 200 from /swagger/index.html, got %d", swaggerRes.Code)
+	}
+}
+
+func TestCORSPreflight(t *testing.T) {
+	repo := &integrationRepo{}
+	tokenManager := auth.NewTokenManager("secret")
+	authHandler := auth.NewHandler(auth.NewService(repo, tokenManager))
+	profileHandler := profile.NewHandler(profile.NewService(repo))
+	router := NewRouter(
+		slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+		authHandler,
+		profileHandler,
+		noopWalletRoutes{},
+		noopDebtRoutes{},
+		noopMutationRoutes{},
+		noopDashboardRoutes{},
+		noopSummaryRoutes{},
+		[]string{"http://localhost:5173"},
+		middleware.NewAuthMiddleware(tokenManager),
+	)
+
+	req := httptest.NewRequest(http.MethodOptions, "/auth/register", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200 from CORS preflight, got %d", res.Code)
+	}
+	if got := res.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+		t.Fatalf("expected access-control-allow-origin header, got %q", got)
 	}
 }

@@ -61,7 +61,7 @@ func New(cfg *config.Config) (*App, error) {
 	dashboardHandler := dashboard.NewHandler(dashboardService)
 	summaryHandler := summary.NewHandler(summaryService)
 	authMiddleware := appmiddleware.NewAuthMiddleware(tokenManager)
-	router := apihttp.NewRouter(log, healthHandler, authHandler, profileHandler, walletHandler, debtHandler, mutationHandler, dashboardHandler, summaryHandler, authMiddleware)
+	router := apihttp.NewRouter(log, healthHandler, authHandler, profileHandler, walletHandler, debtHandler, mutationHandler, dashboardHandler, summaryHandler, cfg.AllowedOrigins, authMiddleware)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%s", cfg.Port),

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	"github.com/alpardfm/moneypath-api/internal/http/apidocs"
@@ -74,6 +75,7 @@ func NewRouter(
 	mutationRoutes MutationRoutes,
 	dashboardRoutes DashboardRoutes,
 	summaryRoutes SummaryRoutes,
+	allowedOrigins []string,
 	authMiddleware func(http.Handler) http.Handler,
 ) http.Handler {
 	router := chi.NewRouter()
@@ -83,6 +85,14 @@ func NewRouter(
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(30 * time.Second))
 	router.Use(appmiddleware.RequestLogger(log))
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   allowedOrigins,
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Requested-With"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
 
 	router.Method(http.MethodGet, "/health", healthHandler)
 	router.Get("/openapi.json", apidocs.OpenAPI)
