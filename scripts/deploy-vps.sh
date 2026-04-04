@@ -4,6 +4,16 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+if [ ! -f ".env.vps" ]; then
+  echo "missing .env.vps in $(pwd)"
+  exit 1
+fi
+
+if [ ! -f "docker-compose.vps.yml" ]; then
+  echo "missing docker-compose.vps.yml in $(pwd)"
+  exit 1
+fi
+
 sudo docker-compose --env-file .env.vps -f docker-compose.vps.yml up -d --build
 
 for attempt in $(seq 1 20); do
