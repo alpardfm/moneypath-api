@@ -10,6 +10,7 @@ type Config struct {
 	AppEnv      string
 	Port        string
 	DatabaseURL string
+	JWTSecret   string
 }
 
 // Load reads the application configuration from environment variables.
@@ -18,10 +19,15 @@ func Load() (*Config, error) {
 		AppEnv:      getEnv("APP_ENV", "development"),
 		Port:        getEnv("PORT", "8080"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
+		JWTSecret:   os.Getenv("JWT_SECRET"),
 	}
 
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+
+	if cfg.JWTSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET is required")
 	}
 
 	return cfg, nil
