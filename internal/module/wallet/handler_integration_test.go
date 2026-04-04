@@ -104,6 +104,14 @@ func (noopMutationRoutes) GetByID(http.ResponseWriter, *http.Request) {}
 func (noopMutationRoutes) Update(http.ResponseWriter, *http.Request)  {}
 func (noopMutationRoutes) Delete(http.ResponseWriter, *http.Request)  {}
 
+type noopDashboardRoutes struct{}
+
+func (noopDashboardRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopSummaryRoutes struct{}
+
+func (noopSummaryRoutes) Get(http.ResponseWriter, *http.Request) {}
+
 func TestWalletFlow(t *testing.T) {
 	repo := &integrationRepo{}
 	handler := NewHandler(NewService(repo))
@@ -121,6 +129,8 @@ func TestWalletFlow(t *testing.T) {
 		handler,
 		noopDebtRoutes{},
 		noopMutationRoutes{},
+		noopDashboardRoutes{},
+		noopSummaryRoutes{},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
 

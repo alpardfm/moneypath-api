@@ -11,9 +11,11 @@ import (
 	"github.com/alpardfm/moneypath-api/internal/http/handler"
 	appmiddleware "github.com/alpardfm/moneypath-api/internal/http/middleware"
 	"github.com/alpardfm/moneypath-api/internal/module/auth"
+	"github.com/alpardfm/moneypath-api/internal/module/dashboard"
 	"github.com/alpardfm/moneypath-api/internal/module/debt"
 	"github.com/alpardfm/moneypath-api/internal/module/mutation"
 	"github.com/alpardfm/moneypath-api/internal/module/profile"
+	"github.com/alpardfm/moneypath-api/internal/module/summary"
 	"github.com/alpardfm/moneypath-api/internal/module/wallet"
 	"github.com/alpardfm/moneypath-api/internal/platform/database"
 	"github.com/alpardfm/moneypath-api/internal/platform/logger"
@@ -45,6 +47,10 @@ func New(cfg *config.Config) (*App, error) {
 	debtService := debt.NewService(debtRepo)
 	mutationRepo := mutation.NewPostgresRepository(db.Pool())
 	mutationService := mutation.NewService(mutationRepo)
+	dashboardRepo := dashboard.NewPostgresRepository(db.Pool())
+	dashboardService := dashboard.NewService(dashboardRepo)
+	summaryRepo := summary.NewPostgresRepository(db.Pool())
+	summaryService := summary.NewService(summaryRepo)
 
 	healthHandler := handler.NewHealthHandler(db)
 	authHandler := auth.NewHandler(authService)
@@ -52,8 +58,10 @@ func New(cfg *config.Config) (*App, error) {
 	walletHandler := wallet.NewHandler(walletService)
 	debtHandler := debt.NewHandler(debtService)
 	mutationHandler := mutation.NewHandler(mutationService)
+	dashboardHandler := dashboard.NewHandler(dashboardService)
+	summaryHandler := summary.NewHandler(summaryService)
 	authMiddleware := appmiddleware.NewAuthMiddleware(tokenManager)
-	router := apihttp.NewRouter(log, healthHandler, authHandler, profileHandler, walletHandler, debtHandler, mutationHandler, authMiddleware)
+	router := apihttp.NewRouter(log, healthHandler, authHandler, profileHandler, walletHandler, debtHandler, mutationHandler, dashboardHandler, summaryHandler, authMiddleware)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%s", cfg.Port),

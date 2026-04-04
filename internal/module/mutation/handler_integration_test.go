@@ -190,6 +190,14 @@ func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
 func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)     {}
 func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
 
+type noopDashboardRoutes struct{}
+
+func (noopDashboardRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopSummaryRoutes struct{}
+
+func (noopSummaryRoutes) Get(http.ResponseWriter, *http.Request) {}
+
 func TestMutationDebtFlow(t *testing.T) {
 	repo := &integrationRepo{
 		wallets: map[string]*walletFixture{
@@ -215,6 +223,8 @@ func TestMutationDebtFlow(t *testing.T) {
 		noopWalletRoutes{},
 		noopDebtRoutes{},
 		handler,
+		noopDashboardRoutes{},
+		noopSummaryRoutes{},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
 
