@@ -3,6 +3,7 @@ package mutation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -83,13 +84,71 @@ func (r *PostgresRepository) Create(ctx context.Context, userID string, input Up
 	return item, nil
 }
 
-func (r *PostgresRepository) List(ctx context.Context, userID string) ([]Mutation, error) {
-	rows, err := r.pool.Query(ctx, `
+func (r *PostgresRepository) List(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	whereParts := []string{"user_id = $1"}
+	args := []any{userID}
+	argIndex := 2
+
+	if options.Type != "" {
+		whereParts = append(whereParts, fmt.Sprintf("mutation_type = $%d", argIndex))
+		args = append(args, options.Type)
+		argIndex++
+	}
+	if options.WalletID != "" {
+		whereParts = append(whereParts, fmt.Sprintf("wallet_id = $%d", argIndex))
+		args = append(args, options.WalletID)
+		argIndex++
+	}
+	if options.DebtID != "" {
+		whereParts = append(whereParts, fmt.Sprintf("debt_id = $%d", argIndex))
+		args = append(args, options.DebtID)
+		argIndex++
+	}
+	if options.RelatedToDebt != nil {
+		whereParts = append(whereParts, fmt.Sprintf("related_to_debt = $%d", argIndex))
+		args = append(args, *options.RelatedToDebt)
+		argIndex++
+	}
+	if options.From != "" {
+		whereParts = append(whereParts, fmt.Sprintf("happened_at >= $%d::timestamptz", argIndex))
+		args = append(args, options.From)
+		argIndex++
+	}
+	if options.To != "" {
+		whereParts = append(whereParts, fmt.Sprintf("happened_at <= $%d::timestamptz", argIndex))
+		args = append(args, options.To)
+		argIndex++
+	}
+
+	whereClause := strings.Join(whereParts, " AND ")
+	countQuery := fmt.Sprintf("SELECT COUNT(1) FROM mutations WHERE %s", whereClause)
+
+	var totalItems int
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&totalItems); err != nil {
+		return nil, err
+	}
+
+	orderBy := "happened_at DESC, created_at DESC"
+	switch options.SortBy {
+	case "created_at":
+		orderBy = fmt.Sprintf("created_at %s, happened_at %s", strings.ToUpper(options.SortDirection), strings.ToUpper(options.SortDirection))
+	case "amount":
+		orderBy = fmt.Sprintf("amount %s, created_at DESC", strings.ToUpper(options.SortDirection))
+	default:
+		orderBy = fmt.Sprintf("happened_at %s, created_at %s", strings.ToUpper(options.SortDirection), strings.ToUpper(options.SortDirection))
+	}
+
+	offset := (options.Page - 1) * options.PageSize
+	args = append(args, options.PageSize, offset)
+	dataQuery := fmt.Sprintf(`
 		SELECT id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
 		FROM mutations
-		WHERE user_id = $1
-		ORDER BY happened_at DESC, created_at DESC
-	`, userID)
+		WHERE %s
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d
+	`, whereClause, orderBy, argIndex, argIndex+1)
+
+	rows, err := r.pool.Query(ctx, dataQuery, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +175,10 @@ func (r *PostgresRepository) List(ctx context.Context, userID string) ([]Mutatio
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	return &ListResult{
+		Items:      items,
+		TotalItems: totalItems,
+	}, rows.Err()
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, userID, mutationID string) (*Mutation, error) {

@@ -48,13 +48,24 @@ func (r *PostgresRepository) Create(ctx context.Context, debt *Debt) error {
 	)
 }
 
-func (r *PostgresRepository) List(ctx context.Context, userID string) ([]Debt, error) {
+func (r *PostgresRepository) List(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	var totalItems int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(1)
+		FROM debts
+		WHERE user_id = $1
+	`, userID).Scan(&totalItems); err != nil {
+		return nil, err
+	}
+
+	offset := (options.Page - 1) * options.PageSize
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, user_id, name, principal_amount::text, remaining_amount::text, tenor_value, tenor_unit, payment_amount::text, status, is_active, note, deleted_at, created_at, updated_at
 		FROM debts
 		WHERE user_id = $1
 		ORDER BY created_at ASC
-	`, userID)
+		LIMIT $2 OFFSET $3
+	`, userID, options.PageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +94,10 @@ func (r *PostgresRepository) List(ctx context.Context, userID string) ([]Debt, e
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	return &ListResult{
+		Items:      items,
+		TotalItems: totalItems,
+	}, rows.Err()
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, userID, debtID string) (*Debt, error) {

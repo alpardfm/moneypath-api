@@ -3,6 +3,7 @@ package debt
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -29,14 +30,25 @@ func (r *integrationRepo) Create(ctx context.Context, debt *Debt) error {
 	r.debts[debt.ID] = *debt
 	return nil
 }
-func (r *integrationRepo) List(ctx context.Context, userID string) ([]Debt, error) {
+func (r *integrationRepo) List(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
 	var out []Debt
 	for _, debt := range r.debts {
 		if debt.UserID == userID {
 			out = append(out, debt)
 		}
 	}
-	return out, nil
+	start := (options.Page - 1) * options.PageSize
+	if start > len(out) {
+		start = len(out)
+	}
+	end := start + options.PageSize
+	if end > len(out) {
+		end = len(out)
+	}
+	return &ListResult{
+		Items:      out[start:end],
+		TotalItems: len(out),
+	}, nil
 }
 func (r *integrationRepo) GetByID(ctx context.Context, userID, debtID string) (*Debt, error) {
 	debt, ok := r.debts[debtID]
@@ -149,6 +161,19 @@ func TestDebtFlow(t *testing.T) {
 	router.ServeHTTP(listRes, listReq)
 	if listRes.Code != http.StatusOK {
 		t.Fatalf("expected 200 from list debts, got %d", listRes.Code)
+	}
+	var listPayload struct {
+		Meta struct {
+			Page       int `json:"page"`
+			PageSize   int `json:"page_size"`
+			TotalItems int `json:"total_items"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(listRes.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("unmarshal list response: %v", err)
+	}
+	if listPayload.Meta.Page != 1 || listPayload.Meta.PageSize != 20 || listPayload.Meta.TotalItems != 1 {
+		t.Fatalf("unexpected pagination meta: %+v", listPayload.Meta)
 	}
 
 	detailReq := httptest.NewRequest(http.MethodGet, "/debts/debt-1", nil)

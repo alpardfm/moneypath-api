@@ -24,8 +24,29 @@ func (s *Service) Create(ctx context.Context, userID string, input UpsertInput) 
 }
 
 // List returns mutation history for the authenticated user.
-func (s *Service) List(ctx context.Context, userID string) ([]Mutation, error) {
-	return s.repo.List(ctx, userID)
+func (s *Service) List(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	if options.Page <= 0 {
+		options.Page = 1
+	}
+	if options.PageSize <= 0 {
+		options.PageSize = 20
+	}
+	if options.SortBy == "" {
+		options.SortBy = "happened_at"
+	}
+	if options.SortBy != "happened_at" && options.SortBy != "created_at" && options.SortBy != "amount" {
+		return nil, ErrMutationValidation
+	}
+	if options.SortDirection == "" {
+		options.SortDirection = "desc"
+	}
+	if options.SortDirection != "asc" && options.SortDirection != "desc" {
+		return nil, ErrMutationValidation
+	}
+	if options.Type != "" && options.Type != "masuk" && options.Type != "keluar" {
+		return nil, ErrMutationValidation
+	}
+	return s.repo.List(ctx, userID, options)
 }
 
 // GetByID returns one mutation owned by the authenticated user.

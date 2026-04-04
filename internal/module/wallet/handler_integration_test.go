@@ -3,6 +3,7 @@ package wallet
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,14 +33,25 @@ func (r *integrationRepo) Create(ctx context.Context, wallet *Wallet) error {
 	return nil
 }
 
-func (r *integrationRepo) ListActive(ctx context.Context, userID string) ([]Wallet, error) {
+func (r *integrationRepo) ListActive(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
 	var items []Wallet
 	for _, wallet := range r.wallets {
 		if wallet.UserID == userID && wallet.IsActive && wallet.DeletedAt == nil {
 			items = append(items, wallet)
 		}
 	}
-	return items, nil
+	start := (options.Page - 1) * options.PageSize
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + options.PageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return &ListResult{
+		Items:      items[start:end],
+		TotalItems: len(items),
+	}, nil
 }
 
 func (r *integrationRepo) GetByID(ctx context.Context, userID, walletID string) (*Wallet, error) {
@@ -149,6 +161,19 @@ func TestWalletFlow(t *testing.T) {
 	router.ServeHTTP(listRes, listReq)
 	if listRes.Code != http.StatusOK {
 		t.Fatalf("expected 200 from list wallets, got %d", listRes.Code)
+	}
+	var listPayload struct {
+		Meta struct {
+			Page       int `json:"page"`
+			PageSize   int `json:"page_size"`
+			TotalItems int `json:"total_items"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(listRes.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("unmarshal list response: %v", err)
+	}
+	if listPayload.Meta.Page != 1 || listPayload.Meta.PageSize != 20 || listPayload.Meta.TotalItems != 1 {
+		t.Fatalf("unexpected pagination meta: %+v", listPayload.Meta)
 	}
 
 	updateReq := httptest.NewRequest(http.MethodPut, "/wallets/wallet-1", bytes.NewBufferString(`{"name":"Main Cash"}`))

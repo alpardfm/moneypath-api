@@ -3,9 +3,11 @@ package mutation
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 
@@ -108,14 +110,59 @@ func (r *integrationRepo) Create(ctx context.Context, userID string, input Upser
 	return &item, nil
 }
 
-func (r *integrationRepo) List(ctx context.Context, userID string) ([]Mutation, error) {
+func (r *integrationRepo) List(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
 	var items []Mutation
 	for _, item := range r.mutations {
-		if item.UserID == userID {
-			items = append(items, item)
+		if item.UserID != userID {
+			continue
 		}
+		if options.Type != "" && item.Type != options.Type {
+			continue
+		}
+		if options.WalletID != "" && item.WalletID != options.WalletID {
+			continue
+		}
+		if options.DebtID != "" && (item.DebtID == nil || *item.DebtID != options.DebtID) {
+			continue
+		}
+		if options.RelatedToDebt != nil && item.RelatedToDebt != *options.RelatedToDebt {
+			continue
+		}
+		items = append(items, item)
 	}
-	return items, nil
+
+	sort.Slice(items, func(i, j int) bool {
+		if options.SortBy == "amount" {
+			if options.SortDirection == "asc" {
+				return items[i].Amount < items[j].Amount
+			}
+			return items[i].Amount > items[j].Amount
+		}
+		if options.SortBy == "created_at" {
+			if options.SortDirection == "asc" {
+				return items[i].CreatedAt.Before(items[j].CreatedAt)
+			}
+			return items[i].CreatedAt.After(items[j].CreatedAt)
+		}
+		if options.SortDirection == "asc" {
+			return items[i].HappenedAt.Before(items[j].HappenedAt)
+		}
+		return items[i].HappenedAt.After(items[j].HappenedAt)
+	})
+
+	start := (options.Page - 1) * options.PageSize
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + options.PageSize
+	if end > len(items) {
+		end = len(items)
+	}
+
+	return &ListResult{
+		Items:      items[start:end],
+		TotalItems: len(items),
+	}, nil
 }
 
 func (r *integrationRepo) GetByID(ctx context.Context, userID, mutationID string) (*Mutation, error) {
@@ -253,5 +300,33 @@ func TestMutationDebtFlow(t *testing.T) {
 	router.ServeHTTP(updateRes, updateReq)
 	if updateRes.Code != http.StatusOK {
 		t.Fatalf("expected 200 from edit debt-related mutation, got %d", updateRes.Code)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/mutations?type=masuk&related_to_debt=true&sort_by=happened_at&sort_direction=desc&page=1&page_size=10", nil)
+	listReq.Header.Set("Authorization", "Bearer "+token)
+	listRes := httptest.NewRecorder()
+	router.ServeHTTP(listRes, listReq)
+	if listRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 from filtered mutation list, got %d", listRes.Code)
+	}
+
+	var listPayload struct {
+		Data []struct {
+			Type string `json:"type"`
+		} `json:"data"`
+		Meta struct {
+			Page       int `json:"page"`
+			PageSize   int `json:"page_size"`
+			TotalItems int `json:"total_items"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(listRes.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("unmarshal list response: %v", err)
+	}
+	if listPayload.Meta.Page != 1 || listPayload.Meta.PageSize != 10 || listPayload.Meta.TotalItems != 1 {
+		t.Fatalf("unexpected list meta: %+v", listPayload.Meta)
+	}
+	if len(listPayload.Data) != 1 || listPayload.Data[0].Type != "masuk" {
+		t.Fatalf("unexpected filtered data: %+v", listPayload.Data)
 	}
 }

@@ -33,8 +33,14 @@ func (s *Service) Create(ctx context.Context, userID string, input CreateInput) 
 }
 
 // ListActive returns active wallets for the authenticated user.
-func (s *Service) ListActive(ctx context.Context, userID string) ([]Wallet, error) {
-	return s.repo.ListActive(ctx, userID)
+func (s *Service) ListActive(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	if options.Page <= 0 {
+		options.Page = 1
+	}
+	if options.PageSize <= 0 {
+		options.PageSize = 20
+	}
+	return s.repo.ListActive(ctx, userID, options)
 }
 
 // GetByID returns a wallet owned by the authenticated user.

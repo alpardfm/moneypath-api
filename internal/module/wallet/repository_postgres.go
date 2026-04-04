@@ -35,13 +35,24 @@ func (r *PostgresRepository) Create(ctx context.Context, wallet *Wallet) error {
 	return mapConstraintError(err)
 }
 
-func (r *PostgresRepository) ListActive(ctx context.Context, userID string) ([]Wallet, error) {
+func (r *PostgresRepository) ListActive(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	var totalItems int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(1)
+		FROM wallets
+		WHERE user_id = $1 AND is_active = TRUE AND deleted_at IS NULL
+	`, userID).Scan(&totalItems); err != nil {
+		return nil, err
+	}
+
+	offset := (options.Page - 1) * options.PageSize
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, user_id, name, balance::text, is_active, deleted_at, created_at, updated_at
 		FROM wallets
 		WHERE user_id = $1 AND is_active = TRUE AND deleted_at IS NULL
 		ORDER BY created_at ASC
-	`, userID)
+		LIMIT $2 OFFSET $3
+	`, userID, options.PageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +67,10 @@ func (r *PostgresRepository) ListActive(ctx context.Context, userID string) ([]W
 		wallets = append(wallets, wallet)
 	}
 
-	return wallets, rows.Err()
+	return &ListResult{
+		Items:      wallets,
+		TotalItems: totalItems,
+	}, rows.Err()
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, userID, walletID string) (*Wallet, error) {

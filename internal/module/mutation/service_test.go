@@ -8,7 +8,7 @@ import (
 
 type stubRepository struct {
 	createFn func(ctx context.Context, userID string, input UpsertInput) (*Mutation, error)
-	listFn   func(ctx context.Context, userID string) ([]Mutation, error)
+	listFn   func(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
 	getFn    func(ctx context.Context, userID, mutationID string) (*Mutation, error)
 	updateFn func(ctx context.Context, userID, mutationID string, input UpsertInput) (*Mutation, error)
 	deleteFn func(ctx context.Context, userID, mutationID string) error
@@ -17,8 +17,8 @@ type stubRepository struct {
 func (s *stubRepository) Create(ctx context.Context, userID string, input UpsertInput) (*Mutation, error) {
 	return s.createFn(ctx, userID, input)
 }
-func (s *stubRepository) List(ctx context.Context, userID string) ([]Mutation, error) {
-	return s.listFn(ctx, userID)
+func (s *stubRepository) List(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	return s.listFn(ctx, userID, options)
 }
 func (s *stubRepository) GetByID(ctx context.Context, userID, mutationID string) (*Mutation, error) {
 	return s.getFn(ctx, userID, mutationID)
@@ -82,5 +82,32 @@ func TestDeleteAlwaysRejected(t *testing.T) {
 	})
 	if err := service.Delete(context.Background(), "user-1", "mutation-1"); err != ErrMutationDeleteNotAllowed {
 		t.Fatalf("expected ErrMutationDeleteNotAllowed, got %v", err)
+	}
+}
+
+func TestListRejectsInvalidSort(t *testing.T) {
+	service := NewService(&stubRepository{})
+
+	_, err := service.List(context.Background(), "user-1", ListOptions{SortBy: "unknown"})
+	if err != ErrMutationValidation {
+		t.Fatalf("expected ErrMutationValidation, got %v", err)
+	}
+}
+
+func TestListUsesDefaultPaginationAndSort(t *testing.T) {
+	service := NewService(&stubRepository{
+		listFn: func(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+			if options.Page != 1 || options.PageSize != 20 {
+				t.Fatalf("unexpected pagination: %+v", options)
+			}
+			if options.SortBy != "happened_at" || options.SortDirection != "desc" {
+				t.Fatalf("unexpected sort defaults: %+v", options)
+			}
+			return &ListResult{}, nil
+		},
+	})
+
+	if _, err := service.List(context.Background(), "user-1", ListOptions{}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 }

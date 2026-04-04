@@ -22,7 +22,7 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var input RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid_json", "invalid request body")
+		response.InvalidJSON(w)
 		return
 	}
 
@@ -42,7 +42,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var input LoginInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid_json", "invalid request body")
+		response.InvalidJSON(w)
 		return
 	}
 
@@ -61,7 +61,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrValidation):
-		response.Error(w, http.StatusBadRequest, "validation_error", "all fields are required")
+		response.ValidationError(w, "all fields are required")
 	case errors.Is(err, ErrEmailAlreadyUsed):
 		response.Error(w, http.StatusConflict, "email_already_used", err.Error())
 	case errors.Is(err, ErrUsernameAlreadyUsed):
@@ -69,7 +69,7 @@ func (h *Handler) writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrInvalidCredentials):
 		response.Error(w, http.StatusUnauthorized, "invalid_credentials", err.Error())
 	default:
-		response.Error(w, http.StatusInternalServerError, "internal_error", "internal server error")
+		response.InternalError(w)
 	}
 }
 

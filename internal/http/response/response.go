@@ -19,6 +19,14 @@ type APIError struct {
 	Message string `json:"message"`
 }
 
+// PaginationMeta describes paginated list response metadata.
+type PaginationMeta struct {
+	Page       int `json:"page"`
+	PageSize   int `json:"page_size"`
+	TotalItems int `json:"total_items"`
+	TotalPages int `json:"total_pages"`
+}
+
 // JSON writes a JSON response with a consistent content type.
 func JSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -47,4 +55,38 @@ func Error(w http.ResponseWriter, status int, code, message string) {
 			Message: message,
 		},
 	})
+}
+
+// InvalidJSON writes the standard invalid json response.
+func InvalidJSON(w http.ResponseWriter) {
+	Error(w, http.StatusBadRequest, "invalid_json", "invalid request body")
+}
+
+// ValidationError writes the standard validation error response.
+func ValidationError(w http.ResponseWriter, message string) {
+	Error(w, http.StatusBadRequest, "validation_error", message)
+}
+
+// Unauthorized writes the standard unauthorized response.
+func Unauthorized(w http.ResponseWriter) {
+	Error(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+}
+
+// InternalError writes the standard internal server error response.
+func InternalError(w http.ResponseWriter) {
+	Error(w, http.StatusInternalServerError, "internal_error", "internal server error")
+}
+
+// NewPaginationMeta builds pagination metadata.
+func NewPaginationMeta(page, pageSize, totalItems int) PaginationMeta {
+	totalPages := 0
+	if pageSize > 0 {
+		totalPages = (totalItems + pageSize - 1) / pageSize
+	}
+	return PaginationMeta{
+		Page:       page,
+		PageSize:   pageSize,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+	}
 }
