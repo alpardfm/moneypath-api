@@ -132,6 +132,10 @@ func (h *Handler) writeError(w http.ResponseWriter, err error) {
 		response.Error(w, http.StatusNotFound, "mutation_not_found", err.Error())
 	case errors.Is(err, ErrMutationWalletNotFound):
 		response.Error(w, http.StatusNotFound, "wallet_not_found", err.Error())
+	case errors.Is(err, ErrMutationCategoryNotFound):
+		response.Error(w, http.StatusNotFound, "category_not_found", err.Error())
+	case errors.Is(err, ErrMutationCategoryMismatch):
+		response.Error(w, http.StatusConflict, "category_type_mismatch", err.Error())
 	case errors.Is(err, ErrMutationDebtNotFound):
 		response.Error(w, http.StatusNotFound, "debt_not_found", err.Error())
 	case errors.Is(err, ErrInsufficientWalletBalance):
@@ -152,6 +156,7 @@ func parseListOptions(r *http.Request) (ListOptions, error) {
 		PageSize:      pagination.PageSize,
 		Type:          strings.TrimSpace(r.URL.Query().Get("type")),
 		WalletID:      strings.TrimSpace(r.URL.Query().Get("wallet_id")),
+		CategoryID:    strings.TrimSpace(r.URL.Query().Get("category_id")),
 		DebtID:        strings.TrimSpace(r.URL.Query().Get("debt_id")),
 		SortBy:        strings.TrimSpace(r.URL.Query().Get("sort_by")),
 		SortDirection: strings.ToLower(strings.TrimSpace(r.URL.Query().Get("sort_direction"))),
@@ -194,6 +199,7 @@ func mutationResponse(item *Mutation) map[string]any {
 		"id":              item.ID,
 		"user_id":         item.UserID,
 		"wallet_id":       item.WalletID,
+		"category_id":     item.CategoryID,
 		"debt_id":         item.DebtID,
 		"debt_action":     item.DebtAction,
 		"type":            item.Type,

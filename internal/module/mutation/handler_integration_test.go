@@ -31,16 +31,33 @@ type debtFixture struct {
 	active    bool
 }
 
+type categoryFixture struct {
+	id     string
+	userID string
+	typ    string
+	active bool
+}
+
 type integrationRepo struct {
-	wallets   map[string]*walletFixture
-	debts     map[string]*debtFixture
-	mutations map[string]Mutation
+	categories map[string]*categoryFixture
+	wallets    map[string]*walletFixture
+	debts      map[string]*debtFixture
+	mutations  map[string]Mutation
 }
 
 func (r *integrationRepo) Create(ctx context.Context, userID string, input UpsertInput) (*Mutation, error) {
 	wallet, ok := r.wallets[input.WalletID]
 	if !ok || wallet.userID != userID || !wallet.active {
 		return nil, ErrMutationWalletNotFound
+	}
+	if input.CategoryID != nil {
+		category, ok := r.categories[*input.CategoryID]
+		if !ok || category.userID != userID || !category.active {
+			return nil, ErrMutationCategoryNotFound
+		}
+		if category.typ != input.Type {
+			return nil, ErrMutationCategoryMismatch
+		}
 	}
 
 	var debtID *string
@@ -93,6 +110,7 @@ func (r *integrationRepo) Create(ctx context.Context, userID string, input Upser
 		ID:            "mutation-1",
 		UserID:        userID,
 		WalletID:      input.WalletID,
+		CategoryID:    input.CategoryID,
 		DebtID:        debtID,
 		DebtAction:    debtAction,
 		Type:          input.Type,
@@ -120,6 +138,9 @@ func (r *integrationRepo) List(ctx context.Context, userID string, options ListO
 			continue
 		}
 		if options.WalletID != "" && item.WalletID != options.WalletID {
+			continue
+		}
+		if options.CategoryID != "" && (item.CategoryID == nil || *item.CategoryID != options.CategoryID) {
 			continue
 		}
 		if options.DebtID != "" && (item.DebtID == nil || *item.DebtID != options.DebtID) {
@@ -221,21 +242,53 @@ func (noopProfileRoutes) GetMe(http.ResponseWriter, *http.Request)          {}
 func (noopProfileRoutes) UpdateMe(http.ResponseWriter, *http.Request)       {}
 func (noopProfileRoutes) ChangePassword(http.ResponseWriter, *http.Request) {}
 
+type noopSettingsRoutes struct{}
+
+func (noopSettingsRoutes) Get(http.ResponseWriter, *http.Request)    {}
+func (noopSettingsRoutes) Update(http.ResponseWriter, *http.Request) {}
+
 type noopWalletRoutes struct{}
 
-func (noopWalletRoutes) Create(http.ResponseWriter, *http.Request)     {}
-func (noopWalletRoutes) ListActive(http.ResponseWriter, *http.Request) {}
-func (noopWalletRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
-func (noopWalletRoutes) Update(http.ResponseWriter, *http.Request)     {}
-func (noopWalletRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+func (noopWalletRoutes) Create(http.ResponseWriter, *http.Request)       {}
+func (noopWalletRoutes) ListActive(http.ResponseWriter, *http.Request)   {}
+func (noopWalletRoutes) ListArchived(http.ResponseWriter, *http.Request) {}
+func (noopWalletRoutes) GetByID(http.ResponseWriter, *http.Request)      {}
+func (noopWalletRoutes) Update(http.ResponseWriter, *http.Request)       {}
+func (noopWalletRoutes) Inactivate(http.ResponseWriter, *http.Request)   {}
 
 type noopDebtRoutes struct{}
 
-func (noopDebtRoutes) Create(http.ResponseWriter, *http.Request)     {}
-func (noopDebtRoutes) List(http.ResponseWriter, *http.Request)       {}
-func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
-func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)     {}
-func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+func (noopDebtRoutes) Create(http.ResponseWriter, *http.Request)       {}
+func (noopDebtRoutes) List(http.ResponseWriter, *http.Request)         {}
+func (noopDebtRoutes) ListArchived(http.ResponseWriter, *http.Request) {}
+func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)      {}
+func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)       {}
+func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request)   {}
+
+type noopCategoryRoutes struct{}
+
+func (noopCategoryRoutes) Create(http.ResponseWriter, *http.Request)     {}
+func (noopCategoryRoutes) List(http.ResponseWriter, *http.Request)       {}
+func (noopCategoryRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
+func (noopCategoryRoutes) Update(http.ResponseWriter, *http.Request)     {}
+func (noopCategoryRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+
+type noopRecurringRoutes struct{}
+
+func (noopRecurringRoutes) Create(http.ResponseWriter, *http.Request)     {}
+func (noopRecurringRoutes) List(http.ResponseWriter, *http.Request)       {}
+func (noopRecurringRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
+func (noopRecurringRoutes) Update(http.ResponseWriter, *http.Request)     {}
+func (noopRecurringRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+func (noopRecurringRoutes) RunDue(http.ResponseWriter, *http.Request)     {}
+
+type noopAnalyticsRoutes struct{}
+
+func (noopAnalyticsRoutes) GetMonthly(http.ResponseWriter, *http.Request) {}
+
+type noopExportRoutes struct{}
+
+func (noopExportRoutes) ExportMutationsCSV(http.ResponseWriter, *http.Request) {}
 
 type noopDashboardRoutes struct{}
 
@@ -245,8 +298,24 @@ type noopSummaryRoutes struct{}
 
 func (noopSummaryRoutes) Get(http.ResponseWriter, *http.Request) {}
 
+type noopHealthScoreRoutes struct{}
+
+func (noopHealthScoreRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopLeakageRoutes struct{}
+
+func (noopLeakageRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopNotificationRoutes struct{}
+
+func (noopNotificationRoutes) Get(http.ResponseWriter, *http.Request) {}
+
 func TestMutationDebtFlow(t *testing.T) {
 	repo := &integrationRepo{
+		categories: map[string]*categoryFixture{
+			"category-1": {id: "category-1", userID: "user-1", typ: "keluar", active: true},
+			"category-2": {id: "category-2", userID: "user-1", typ: "masuk", active: true},
+		},
 		wallets: map[string]*walletFixture{
 			"wallet-1": {id: "wallet-1", userID: "user-1", balance: "50.00", active: true},
 		},
@@ -267,15 +336,24 @@ func TestMutationDebtFlow(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }),
 		noopAuthRoutes{},
 		noopProfileRoutes{},
+		noopSettingsRoutes{},
 		noopWalletRoutes{},
 		noopDebtRoutes{},
+		noopCategoryRoutes{},
 		handler,
+		noopRecurringRoutes{},
+		noopAnalyticsRoutes{},
+		noopExportRoutes{},
 		noopDashboardRoutes{},
 		noopSummaryRoutes{},
+		noopHealthScoreRoutes{},
+		noopLeakageRoutes{},
+		noopNotificationRoutes{},
+		[]string{"http://localhost:5173"},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
 
-	payReq := httptest.NewRequest(http.MethodPost, "/mutations", bytes.NewBufferString(`{"wallet_id":"wallet-1","debt_id":"debt-1","type":"keluar","amount":"20.00","description":"pay installment","related_to_debt":true,"happened_at":"2026-04-04T10:00:00Z"}`))
+	payReq := httptest.NewRequest(http.MethodPost, "/mutations", bytes.NewBufferString(`{"wallet_id":"wallet-1","category_id":"category-1","debt_id":"debt-1","type":"keluar","amount":"20.00","description":"pay installment","related_to_debt":true,"happened_at":"2026-04-04T10:00:00Z"}`))
 	payReq.Header.Set("Content-Type", "application/json")
 	payReq.Header.Set("Authorization", "Bearer "+token)
 	payRes := httptest.NewRecorder()
@@ -284,7 +362,7 @@ func TestMutationDebtFlow(t *testing.T) {
 		t.Fatalf("expected 201 from debt payment, got %d", payRes.Code)
 	}
 
-	borrowNewReq := httptest.NewRequest(http.MethodPost, "/mutations", bytes.NewBufferString(`{"wallet_id":"wallet-1","type":"masuk","amount":"100.00","description":"loan disbursement","related_to_debt":true,"new_debt":{"name":"Laptop","principal_amount":"120.00","tenor_value":12,"tenor_unit":"month","payment_amount":"10.00"},"happened_at":"2026-04-04T11:00:00Z"}`))
+	borrowNewReq := httptest.NewRequest(http.MethodPost, "/mutations", bytes.NewBufferString(`{"wallet_id":"wallet-1","category_id":"category-2","type":"masuk","amount":"100.00","description":"loan disbursement","related_to_debt":true,"new_debt":{"name":"Laptop","principal_amount":"120.00","tenor_value":12,"tenor_unit":"month","payment_amount":"10.00"},"happened_at":"2026-04-04T11:00:00Z"}`))
 	borrowNewReq.Header.Set("Content-Type", "application/json")
 	borrowNewReq.Header.Set("Authorization", "Bearer "+token)
 	borrowNewRes := httptest.NewRecorder()
@@ -293,7 +371,7 @@ func TestMutationDebtFlow(t *testing.T) {
 		t.Fatalf("expected 201 from create debt by mutation, got %d", borrowNewRes.Code)
 	}
 
-	updateReq := httptest.NewRequest(http.MethodPut, "/mutations/mutation-1", bytes.NewBufferString(`{"wallet_id":"wallet-1","debt_id":"debt-1","type":"masuk","amount":"120.00","description":"switch to existing debt borrow","related_to_debt":true,"happened_at":"2026-04-04T12:00:00Z"}`))
+	updateReq := httptest.NewRequest(http.MethodPut, "/mutations/mutation-1", bytes.NewBufferString(`{"wallet_id":"wallet-1","category_id":"category-2","debt_id":"debt-1","type":"masuk","amount":"120.00","description":"switch to existing debt borrow","related_to_debt":true,"happened_at":"2026-04-04T12:00:00Z"}`))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateReq.Header.Set("Authorization", "Bearer "+token)
 	updateRes := httptest.NewRecorder()
@@ -302,7 +380,7 @@ func TestMutationDebtFlow(t *testing.T) {
 		t.Fatalf("expected 200 from edit debt-related mutation, got %d", updateRes.Code)
 	}
 
-	listReq := httptest.NewRequest(http.MethodGet, "/mutations?type=masuk&related_to_debt=true&sort_by=happened_at&sort_direction=desc&page=1&page_size=10", nil)
+	listReq := httptest.NewRequest(http.MethodGet, "/mutations?type=masuk&category_id=category-2&related_to_debt=true&sort_by=happened_at&sort_direction=desc&page=1&page_size=10", nil)
 	listReq.Header.Set("Authorization", "Bearer "+token)
 	listRes := httptest.NewRecorder()
 	router.ServeHTTP(listRes, listReq)

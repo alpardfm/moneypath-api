@@ -43,6 +43,17 @@ func (s *Service) ListActive(ctx context.Context, userID string, options ListOpt
 	return s.repo.ListActive(ctx, userID, options)
 }
 
+// ListArchived returns inactive wallets for the authenticated user.
+func (s *Service) ListArchived(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	if options.Page <= 0 {
+		options.Page = 1
+	}
+	if options.PageSize <= 0 {
+		options.PageSize = 20
+	}
+	return s.repo.ListArchived(ctx, userID, options)
+}
+
 // GetByID returns a wallet owned by the authenticated user.
 func (s *Service) GetByID(ctx context.Context, userID, walletID string) (*Wallet, error) {
 	return s.repo.GetByID(ctx, userID, walletID)

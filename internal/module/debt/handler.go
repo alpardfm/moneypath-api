@@ -69,6 +69,33 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	))
 }
 
+// ListArchived returns archived debts for the authenticated user.
+func (h *Handler) ListArchived(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.AuthUserID(r.Context())
+	if !ok {
+		response.Unauthorized(w)
+		return
+	}
+	pagination := params.ParsePagination(r)
+	result, err := h.service.ListArchived(r.Context(), userID, ListOptions{
+		Page:     pagination.Page,
+		PageSize: pagination.PageSize,
+	})
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	data := make([]map[string]any, 0, len(result.Items))
+	for i := range result.Items {
+		data = append(data, debtResponse(&result.Items[i]))
+	}
+	response.Success(w, http.StatusOK, data, response.NewPaginationMeta(
+		pagination.Page,
+		pagination.PageSize,
+		result.TotalItems,
+	))
+}
+
 // GetByID returns a debt detail.
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())

@@ -18,6 +18,7 @@ type ListResult struct {
 type Repository interface {
 	Create(ctx context.Context, debt *Debt) error
 	List(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
+	ListArchived(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
 	GetByID(ctx context.Context, userID, debtID string) (*Debt, error)
 	Update(ctx context.Context, debt *Debt) (*Debt, error)
 	Inactivate(ctx context.Context, userID, debtID string) error

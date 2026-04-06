@@ -18,6 +18,14 @@ type walletState struct {
 	DeletedAt any
 }
 
+type categoryState struct {
+	ID        string
+	UserID    string
+	Type      string
+	IsActive  bool
+	DeletedAt any
+}
+
 type debtState struct {
 	ID              string
 	UserID          string
@@ -56,13 +64,14 @@ func (r *PostgresRepository) Create(ctx context.Context, userID string, input Up
 
 	item := &Mutation{}
 	err = tx.QueryRow(ctx, `
-		INSERT INTO mutations (user_id, wallet_id, debt_id, debt_action, mutation_type, amount, description, related_to_debt, happened_at)
-		VALUES ($1, $2, $3, $4, $5, $6::numeric, $7, $8, $9)
-		RETURNING id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
-	`, userID, input.WalletID, mutationDebtID, debtAction, input.Type, input.Amount, input.Description, input.RelatedToDebt, input.HappenedAt).Scan(
+		INSERT INTO mutations (user_id, wallet_id, category_id, debt_id, debt_action, mutation_type, amount, description, related_to_debt, happened_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8, $9, $10)
+		RETURNING id, user_id, wallet_id, category_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+	`, userID, input.WalletID, input.CategoryID, mutationDebtID, debtAction, input.Type, input.Amount, input.Description, input.RelatedToDebt, input.HappenedAt).Scan(
 		&item.ID,
 		&item.UserID,
 		&item.WalletID,
+		&item.CategoryID,
 		&item.DebtID,
 		&item.DebtAction,
 		&item.Type,
@@ -97,6 +106,11 @@ func (r *PostgresRepository) List(ctx context.Context, userID string, options Li
 	if options.WalletID != "" {
 		whereParts = append(whereParts, fmt.Sprintf("wallet_id = $%d", argIndex))
 		args = append(args, options.WalletID)
+		argIndex++
+	}
+	if options.CategoryID != "" {
+		whereParts = append(whereParts, fmt.Sprintf("category_id = $%d", argIndex))
+		args = append(args, options.CategoryID)
 		argIndex++
 	}
 	if options.DebtID != "" {
@@ -141,7 +155,7 @@ func (r *PostgresRepository) List(ctx context.Context, userID string, options Li
 	offset := (options.Page - 1) * options.PageSize
 	args = append(args, options.PageSize, offset)
 	dataQuery := fmt.Sprintf(`
-		SELECT id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+		SELECT id, user_id, wallet_id, category_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
 		FROM mutations
 		WHERE %s
 		ORDER BY %s
@@ -161,6 +175,7 @@ func (r *PostgresRepository) List(ctx context.Context, userID string, options Li
 			&item.ID,
 			&item.UserID,
 			&item.WalletID,
+			&item.CategoryID,
 			&item.DebtID,
 			&item.DebtAction,
 			&item.Type,
@@ -184,13 +199,14 @@ func (r *PostgresRepository) List(ctx context.Context, userID string, options Li
 func (r *PostgresRepository) GetByID(ctx context.Context, userID, mutationID string) (*Mutation, error) {
 	item := &Mutation{}
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+		SELECT id, user_id, wallet_id, category_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
 		FROM mutations
 		WHERE id = $1 AND user_id = $2
 	`, mutationID, userID).Scan(
 		&item.ID,
 		&item.UserID,
 		&item.WalletID,
+		&item.CategoryID,
 		&item.DebtID,
 		&item.DebtAction,
 		&item.Type,
@@ -244,20 +260,22 @@ func (r *PostgresRepository) Update(ctx context.Context, userID, mutationID stri
 	err = tx.QueryRow(ctx, `
 		UPDATE mutations
 		SET wallet_id = $3,
-		    debt_id = $4,
-		    debt_action = $5,
-		    mutation_type = $6,
-		    amount = $7::numeric,
-		    description = $8,
-		    related_to_debt = $9,
-		    happened_at = $10,
+		    category_id = $4,
+		    debt_id = $5,
+		    debt_action = $6,
+		    mutation_type = $7,
+		    amount = $8::numeric,
+		    description = $9,
+		    related_to_debt = $10,
+		    happened_at = $11,
 		    updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
-		RETURNING id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
-	`, mutationID, userID, input.WalletID, mutationDebtID, debtAction, input.Type, input.Amount, input.Description, input.RelatedToDebt, input.HappenedAt).Scan(
+		RETURNING id, user_id, wallet_id, category_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+	`, mutationID, userID, input.WalletID, input.CategoryID, mutationDebtID, debtAction, input.Type, input.Amount, input.Description, input.RelatedToDebt, input.HappenedAt).Scan(
 		&item.ID,
 		&item.UserID,
 		&item.WalletID,
+		&item.CategoryID,
 		&item.DebtID,
 		&item.DebtAction,
 		&item.Type,
@@ -290,7 +308,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, userID, mutationID stri
 func (r *PostgresRepository) getByIDForUpdate(ctx context.Context, tx pgx.Tx, userID, mutationID string) (*Mutation, error) {
 	item := &Mutation{}
 	err := tx.QueryRow(ctx, `
-		SELECT id, user_id, wallet_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
+		SELECT id, user_id, wallet_id, category_id, debt_id, debt_action, mutation_type, amount::text, description, related_to_debt, happened_at, created_at, updated_at
 		FROM mutations
 		WHERE id = $1 AND user_id = $2
 		FOR UPDATE
@@ -298,6 +316,7 @@ func (r *PostgresRepository) getByIDForUpdate(ctx context.Context, tx pgx.Tx, us
 		&item.ID,
 		&item.UserID,
 		&item.WalletID,
+		&item.CategoryID,
 		&item.DebtID,
 		&item.DebtAction,
 		&item.Type,
@@ -334,6 +353,23 @@ func (r *PostgresRepository) lockWallet(ctx context.Context, tx pgx.Tx, userID, 
 	return wallet, nil
 }
 
+func (r *PostgresRepository) lockCategory(ctx context.Context, tx pgx.Tx, userID, categoryID string) (*categoryState, error) {
+	item := &categoryState{}
+	err := tx.QueryRow(ctx, `
+		SELECT id, user_id, category_type, is_active, deleted_at
+		FROM categories
+		WHERE id = $1 AND user_id = $2 AND is_active = TRUE AND deleted_at IS NULL
+		FOR SHARE
+	`, categoryID, userID).Scan(&item.ID, &item.UserID, &item.Type, &item.IsActive, &item.DeletedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrMutationCategoryNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
 func (r *PostgresRepository) lockDebt(ctx context.Context, tx pgx.Tx, userID, debtID string) (*debtState, error) {
 	item := &debtState{}
 	err := tx.QueryRow(ctx, `
@@ -360,6 +396,16 @@ func (r *PostgresRepository) lockDebt(ctx context.Context, tx pgx.Tx, userID, de
 }
 
 func (r *PostgresRepository) applyNewState(ctx context.Context, tx pgx.Tx, userID string, input UpsertInput) (*string, string, error) {
+	if input.CategoryID != nil {
+		category, err := r.lockCategory(ctx, tx, userID, *input.CategoryID)
+		if err != nil {
+			return nil, "", err
+		}
+		if category.Type != input.Type {
+			return nil, "", ErrMutationCategoryMismatch
+		}
+	}
+
 	if err := r.applyWalletEffect(ctx, tx, input.WalletID, input.Type, input.Amount, false); err != nil {
 		return nil, "", err
 	}

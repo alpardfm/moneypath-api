@@ -18,6 +18,7 @@ type ListResult struct {
 type Repository interface {
 	Create(ctx context.Context, wallet *Wallet) error
 	ListActive(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
+	ListArchived(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
 	GetByID(ctx context.Context, userID, walletID string) (*Wallet, error)
 	UpdateName(ctx context.Context, userID, walletID, name string) (*Wallet, error)
 	Inactivate(ctx context.Context, userID, walletID string) error

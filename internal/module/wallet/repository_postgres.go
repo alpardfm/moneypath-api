@@ -73,6 +73,44 @@ func (r *PostgresRepository) ListActive(ctx context.Context, userID string, opti
 	}, rows.Err()
 }
 
+func (r *PostgresRepository) ListArchived(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	var totalItems int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(1)
+		FROM wallets
+		WHERE user_id = $1 AND (is_active = FALSE OR deleted_at IS NOT NULL)
+	`, userID).Scan(&totalItems); err != nil {
+		return nil, err
+	}
+
+	offset := (options.Page - 1) * options.PageSize
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, user_id, name, balance::text, is_active, deleted_at, created_at, updated_at
+		FROM wallets
+		WHERE user_id = $1 AND (is_active = FALSE OR deleted_at IS NOT NULL)
+		ORDER BY deleted_at DESC NULLS LAST, updated_at DESC
+		LIMIT $2 OFFSET $3
+	`, userID, options.PageSize, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var wallets []Wallet
+	for rows.Next() {
+		var wallet Wallet
+		if err := rows.Scan(&wallet.ID, &wallet.UserID, &wallet.Name, &wallet.Balance, &wallet.IsActive, &wallet.DeletedAt, &wallet.CreatedAt, &wallet.UpdatedAt); err != nil {
+			return nil, err
+		}
+		wallets = append(wallets, wallet)
+	}
+
+	return &ListResult{
+		Items:      wallets,
+		TotalItems: totalItems,
+	}, rows.Err()
+}
+
 func (r *PostgresRepository) GetByID(ctx context.Context, userID, walletID string) (*Wallet, error) {
 	wallet := &Wallet{}
 	err := r.pool.QueryRow(ctx, `

@@ -12,6 +12,7 @@ type stubRepository struct {
 	getEmailOrUserFn func(ctx context.Context, value string) (*User, error)
 	getByIDFn        func(ctx context.Context, userID string) (*User, error)
 	updateProfileFn  func(ctx context.Context, userID, email, username, fullName string) (*User, error)
+	updateSettingsFn func(ctx context.Context, userID, preferredCurrency, timezone, dateFormat, weekStartDay string) (*User, error)
 	updatePasswordFn func(ctx context.Context, userID, passwordHash string) error
 }
 
@@ -32,6 +33,12 @@ func (s *stubRepository) GetUserByID(ctx context.Context, userID string) (*User,
 }
 func (s *stubRepository) UpdateProfile(ctx context.Context, userID, email, username, fullName string) (*User, error) {
 	return s.updateProfileFn(ctx, userID, email, username, fullName)
+}
+func (s *stubRepository) UpdateSettings(ctx context.Context, userID, preferredCurrency, timezone, dateFormat, weekStartDay string) (*User, error) {
+	if s.updateSettingsFn == nil {
+		return nil, ErrUserNotFound
+	}
+	return s.updateSettingsFn(ctx, userID, preferredCurrency, timezone, dateFormat, weekStartDay)
 }
 func (s *stubRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
 	return s.updatePasswordFn(ctx, userID, passwordHash)
