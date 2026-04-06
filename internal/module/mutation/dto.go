@@ -5,6 +5,7 @@ import "time"
 // UpsertInput contains the payload for create and update mutation flows.
 type UpsertInput struct {
 	WalletID      string        `json:"wallet_id"`
+	CategoryID    *string       `json:"category_id"`
 	DebtID        *string       `json:"debt_id"`
 	Type          string        `json:"type"`
 	Amount        string        `json:"amount"`

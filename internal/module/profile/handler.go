@@ -101,11 +101,15 @@ func (h *Handler) writeError(w http.ResponseWriter, err error) {
 
 func userResponse(user *auth.User) map[string]any {
 	return map[string]any{
-		"id":         user.ID,
-		"email":      user.Email,
-		"username":   user.Username,
-		"full_name":  user.FullName,
-		"created_at": user.CreatedAt,
-		"updated_at": user.UpdatedAt,
+		"id":                 user.ID,
+		"email":              user.Email,
+		"username":           user.Username,
+		"full_name":          user.FullName,
+		"preferred_currency": user.PreferredCurrency,
+		"timezone":           user.Timezone,
+		"date_format":        user.DateFormat,
+		"week_start_day":     user.WeekStartDay,
+		"created_at":         user.CreatedAt,
+		"updated_at":         user.UpdatedAt,
 	}
 }

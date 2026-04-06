@@ -7,6 +7,7 @@ type Mutation struct {
 	ID            string
 	UserID        string
 	WalletID      string
+	CategoryID    *string
 	DebtID        *string
 	DebtAction    string
 	Type          string

@@ -53,6 +53,26 @@ func (r *integrationRepo) ListActive(ctx context.Context, userID string, options
 		TotalItems: len(items),
 	}, nil
 }
+func (r *integrationRepo) ListArchived(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	var items []Wallet
+	for _, wallet := range r.wallets {
+		if wallet.UserID == userID && (!wallet.IsActive || wallet.DeletedAt != nil) {
+			items = append(items, wallet)
+		}
+	}
+	start := (options.Page - 1) * options.PageSize
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + options.PageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return &ListResult{
+		Items:      items[start:end],
+		TotalItems: len(items),
+	}, nil
+}
 
 func (r *integrationRepo) GetByID(ctx context.Context, userID, walletID string) (*Wallet, error) {
 	wallet, ok := r.wallets[walletID]
@@ -100,13 +120,27 @@ func (noopProfileRoutes) GetMe(http.ResponseWriter, *http.Request)          {}
 func (noopProfileRoutes) UpdateMe(http.ResponseWriter, *http.Request)       {}
 func (noopProfileRoutes) ChangePassword(http.ResponseWriter, *http.Request) {}
 
+type noopSettingsRoutes struct{}
+
+func (noopSettingsRoutes) Get(http.ResponseWriter, *http.Request)    {}
+func (noopSettingsRoutes) Update(http.ResponseWriter, *http.Request) {}
+
 type noopDebtRoutes struct{}
 
-func (noopDebtRoutes) Create(http.ResponseWriter, *http.Request)     {}
-func (noopDebtRoutes) List(http.ResponseWriter, *http.Request)       {}
-func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
-func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)     {}
-func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+func (noopDebtRoutes) Create(http.ResponseWriter, *http.Request)       {}
+func (noopDebtRoutes) List(http.ResponseWriter, *http.Request)         {}
+func (noopDebtRoutes) ListArchived(http.ResponseWriter, *http.Request) {}
+func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)      {}
+func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)       {}
+func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request)   {}
+
+type noopCategoryRoutes struct{}
+
+func (noopCategoryRoutes) Create(http.ResponseWriter, *http.Request)     {}
+func (noopCategoryRoutes) List(http.ResponseWriter, *http.Request)       {}
+func (noopCategoryRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
+func (noopCategoryRoutes) Update(http.ResponseWriter, *http.Request)     {}
+func (noopCategoryRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
 
 type noopMutationRoutes struct{}
 
@@ -116,6 +150,23 @@ func (noopMutationRoutes) GetByID(http.ResponseWriter, *http.Request) {}
 func (noopMutationRoutes) Update(http.ResponseWriter, *http.Request)  {}
 func (noopMutationRoutes) Delete(http.ResponseWriter, *http.Request)  {}
 
+type noopRecurringRoutes struct{}
+
+func (noopRecurringRoutes) Create(http.ResponseWriter, *http.Request)     {}
+func (noopRecurringRoutes) List(http.ResponseWriter, *http.Request)       {}
+func (noopRecurringRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
+func (noopRecurringRoutes) Update(http.ResponseWriter, *http.Request)     {}
+func (noopRecurringRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+func (noopRecurringRoutes) RunDue(http.ResponseWriter, *http.Request)     {}
+
+type noopAnalyticsRoutes struct{}
+
+func (noopAnalyticsRoutes) GetMonthly(http.ResponseWriter, *http.Request) {}
+
+type noopExportRoutes struct{}
+
+func (noopExportRoutes) ExportMutationsCSV(http.ResponseWriter, *http.Request) {}
+
 type noopDashboardRoutes struct{}
 
 func (noopDashboardRoutes) Get(http.ResponseWriter, *http.Request) {}
@@ -123,6 +174,18 @@ func (noopDashboardRoutes) Get(http.ResponseWriter, *http.Request) {}
 type noopSummaryRoutes struct{}
 
 func (noopSummaryRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopHealthScoreRoutes struct{}
+
+func (noopHealthScoreRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopLeakageRoutes struct{}
+
+func (noopLeakageRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopNotificationRoutes struct{}
+
+func (noopNotificationRoutes) Get(http.ResponseWriter, *http.Request) {}
 
 func TestWalletFlow(t *testing.T) {
 	repo := &integrationRepo{}
@@ -138,11 +201,20 @@ func TestWalletFlow(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }),
 		noopAuthRoutes{},
 		noopProfileRoutes{},
+		noopSettingsRoutes{},
 		handler,
 		noopDebtRoutes{},
+		noopCategoryRoutes{},
 		noopMutationRoutes{},
+		noopRecurringRoutes{},
+		noopAnalyticsRoutes{},
+		noopExportRoutes{},
 		noopDashboardRoutes{},
 		noopSummaryRoutes{},
+		noopHealthScoreRoutes{},
+		noopLeakageRoutes{},
+		noopNotificationRoutes{},
+		[]string{"http://localhost:5173"},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
 
@@ -199,5 +271,13 @@ func TestWalletFlow(t *testing.T) {
 	router.ServeHTTP(deleteRes, deleteReq)
 	if deleteRes.Code != http.StatusOK {
 		t.Fatalf("expected 200 from wallet inactivate, got %d", deleteRes.Code)
+	}
+
+	archiveReq := httptest.NewRequest(http.MethodGet, "/wallets/archive", nil)
+	archiveReq.Header.Set("Authorization", "Bearer "+token)
+	archiveRes := httptest.NewRecorder()
+	router.ServeHTTP(archiveRes, archiveReq)
+	if archiveRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 from archived wallets, got %d", archiveRes.Code)
 	}
 }

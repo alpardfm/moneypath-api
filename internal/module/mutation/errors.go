@@ -8,6 +8,8 @@ var (
 	ErrMutationDeleteNotAllowed  = errors.New("mutation delete is not allowed")
 	ErrInsufficientWalletBalance = errors.New("insufficient wallet balance")
 	ErrMutationWalletNotFound    = errors.New("wallet not found")
+	ErrMutationCategoryNotFound  = errors.New("category not found")
+	ErrMutationCategoryMismatch  = errors.New("category type must match mutation type")
 	ErrMutationDebtNotFound      = errors.New("debt not found")
 	ErrInvalidDebtRelation       = errors.New("invalid debt relation")
 	ErrDebtStateChanged          = errors.New("debt state changed by later operations")

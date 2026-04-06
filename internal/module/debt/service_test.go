@@ -6,16 +6,23 @@ import (
 )
 
 type stubRepository struct {
-	createFn   func(ctx context.Context, debt *Debt) error
-	listFn     func(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
-	getByIDFn  func(ctx context.Context, userID, debtID string) (*Debt, error)
-	updateFn   func(ctx context.Context, debt *Debt) (*Debt, error)
-	inactiveFn func(ctx context.Context, userID, debtID string) error
+	createFn       func(ctx context.Context, debt *Debt) error
+	listFn         func(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
+	listArchivedFn func(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
+	getByIDFn      func(ctx context.Context, userID, debtID string) (*Debt, error)
+	updateFn       func(ctx context.Context, debt *Debt) (*Debt, error)
+	inactiveFn     func(ctx context.Context, userID, debtID string) error
 }
 
 func (s *stubRepository) Create(ctx context.Context, debt *Debt) error { return s.createFn(ctx, debt) }
 func (s *stubRepository) List(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
 	return s.listFn(ctx, userID, options)
+}
+func (s *stubRepository) ListArchived(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	if s.listArchivedFn == nil {
+		return &ListResult{}, nil
+	}
+	return s.listArchivedFn(ctx, userID, options)
 }
 func (s *stubRepository) GetByID(ctx context.Context, userID, debtID string) (*Debt, error) {
 	return s.getByIDFn(ctx, userID, debtID)

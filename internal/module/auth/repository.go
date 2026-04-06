@@ -10,5 +10,6 @@ type Repository interface {
 	GetUserByEmailOrUsername(ctx context.Context, value string) (*User, error)
 	GetUserByID(ctx context.Context, userID string) (*User, error)
 	UpdateProfile(ctx context.Context, userID, email, username, fullName string) (*User, error)
+	UpdateSettings(ctx context.Context, userID, preferredCurrency, timezone, dateFormat, weekStartDay string) (*User, error)
 	UpdatePassword(ctx context.Context, userID, passwordHash string) error
 }

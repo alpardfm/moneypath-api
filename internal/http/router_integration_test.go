@@ -21,19 +21,34 @@ type integrationRepo struct {
 
 type noopWalletRoutes struct{}
 
-func (noopWalletRoutes) Create(http.ResponseWriter, *http.Request)     {}
-func (noopWalletRoutes) ListActive(http.ResponseWriter, *http.Request) {}
-func (noopWalletRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
-func (noopWalletRoutes) Update(http.ResponseWriter, *http.Request)     {}
-func (noopWalletRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+func (noopWalletRoutes) Create(http.ResponseWriter, *http.Request)       {}
+func (noopWalletRoutes) ListActive(http.ResponseWriter, *http.Request)   {}
+func (noopWalletRoutes) ListArchived(http.ResponseWriter, *http.Request) {}
+func (noopWalletRoutes) GetByID(http.ResponseWriter, *http.Request)      {}
+func (noopWalletRoutes) Update(http.ResponseWriter, *http.Request)       {}
+func (noopWalletRoutes) Inactivate(http.ResponseWriter, *http.Request)   {}
+
+type noopSettingsRoutes struct{}
+
+func (noopSettingsRoutes) Get(http.ResponseWriter, *http.Request)    {}
+func (noopSettingsRoutes) Update(http.ResponseWriter, *http.Request) {}
 
 type noopDebtRoutes struct{}
 
-func (noopDebtRoutes) Create(http.ResponseWriter, *http.Request)     {}
-func (noopDebtRoutes) List(http.ResponseWriter, *http.Request)       {}
-func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
-func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)     {}
-func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+func (noopDebtRoutes) Create(http.ResponseWriter, *http.Request)       {}
+func (noopDebtRoutes) List(http.ResponseWriter, *http.Request)         {}
+func (noopDebtRoutes) ListArchived(http.ResponseWriter, *http.Request) {}
+func (noopDebtRoutes) GetByID(http.ResponseWriter, *http.Request)      {}
+func (noopDebtRoutes) Update(http.ResponseWriter, *http.Request)       {}
+func (noopDebtRoutes) Inactivate(http.ResponseWriter, *http.Request)   {}
+
+type noopCategoryRoutes struct{}
+
+func (noopCategoryRoutes) Create(http.ResponseWriter, *http.Request)     {}
+func (noopCategoryRoutes) List(http.ResponseWriter, *http.Request)       {}
+func (noopCategoryRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
+func (noopCategoryRoutes) Update(http.ResponseWriter, *http.Request)     {}
+func (noopCategoryRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
 
 type noopMutationRoutes struct{}
 
@@ -43,6 +58,23 @@ func (noopMutationRoutes) GetByID(http.ResponseWriter, *http.Request) {}
 func (noopMutationRoutes) Update(http.ResponseWriter, *http.Request)  {}
 func (noopMutationRoutes) Delete(http.ResponseWriter, *http.Request)  {}
 
+type noopRecurringRoutes struct{}
+
+func (noopRecurringRoutes) Create(http.ResponseWriter, *http.Request)     {}
+func (noopRecurringRoutes) List(http.ResponseWriter, *http.Request)       {}
+func (noopRecurringRoutes) GetByID(http.ResponseWriter, *http.Request)    {}
+func (noopRecurringRoutes) Update(http.ResponseWriter, *http.Request)     {}
+func (noopRecurringRoutes) Inactivate(http.ResponseWriter, *http.Request) {}
+func (noopRecurringRoutes) RunDue(http.ResponseWriter, *http.Request)     {}
+
+type noopAnalyticsRoutes struct{}
+
+func (noopAnalyticsRoutes) GetMonthly(http.ResponseWriter, *http.Request) {}
+
+type noopExportRoutes struct{}
+
+func (noopExportRoutes) ExportMutationsCSV(http.ResponseWriter, *http.Request) {}
+
 type noopDashboardRoutes struct{}
 
 func (noopDashboardRoutes) Get(http.ResponseWriter, *http.Request) {}
@@ -50,6 +82,18 @@ func (noopDashboardRoutes) Get(http.ResponseWriter, *http.Request) {}
 type noopSummaryRoutes struct{}
 
 func (noopSummaryRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopHealthScoreRoutes struct{}
+
+func (noopHealthScoreRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopLeakageRoutes struct{}
+
+func (noopLeakageRoutes) Get(http.ResponseWriter, *http.Request) {}
+
+type noopNotificationRoutes struct{}
+
+func (noopNotificationRoutes) Get(http.ResponseWriter, *http.Request) {}
 
 func (r *integrationRepo) CreateUser(ctx context.Context, user *auth.User) error {
 	if r.user != nil && r.user.Email == user.Email {
@@ -103,6 +147,19 @@ func (r *integrationRepo) UpdateProfile(ctx context.Context, userID, email, user
 	return r.user, nil
 }
 
+func (r *integrationRepo) UpdateSettings(ctx context.Context, userID, preferredCurrency, timezone, dateFormat, weekStartDay string) (*auth.User, error) {
+	if r.user == nil || r.user.ID != userID {
+		return nil, auth.ErrUserNotFound
+	}
+
+	r.user.PreferredCurrency = preferredCurrency
+	r.user.Timezone = timezone
+	r.user.DateFormat = dateFormat
+	r.user.WeekStartDay = weekStartDay
+	r.user.UpdatedAt = time.Now()
+	return r.user, nil
+}
+
 func (r *integrationRepo) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
 	if r.user == nil || r.user.ID != userID {
 		return auth.ErrUserNotFound
@@ -125,11 +182,19 @@ func TestAuthAndProfileFlow(t *testing.T) {
 		}),
 		authHandler,
 		profileHandler,
+		noopSettingsRoutes{},
 		noopWalletRoutes{},
 		noopDebtRoutes{},
+		noopCategoryRoutes{},
 		noopMutationRoutes{},
+		noopRecurringRoutes{},
+		noopAnalyticsRoutes{},
+		noopExportRoutes{},
 		noopDashboardRoutes{},
 		noopSummaryRoutes{},
+		noopHealthScoreRoutes{},
+		noopLeakageRoutes{},
+		noopNotificationRoutes{},
 		[]string{"http://localhost:5173"},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
@@ -201,11 +266,19 @@ func TestSwaggerAndOpenAPIRoutes(t *testing.T) {
 		}),
 		authHandler,
 		profileHandler,
+		noopSettingsRoutes{},
 		noopWalletRoutes{},
 		noopDebtRoutes{},
+		noopCategoryRoutes{},
 		noopMutationRoutes{},
+		noopRecurringRoutes{},
+		noopAnalyticsRoutes{},
+		noopExportRoutes{},
 		noopDashboardRoutes{},
 		noopSummaryRoutes{},
+		noopHealthScoreRoutes{},
+		noopLeakageRoutes{},
+		noopNotificationRoutes{},
 		[]string{"http://localhost:5173"},
 		middleware.NewAuthMiddleware(tokenManager),
 	)
@@ -240,11 +313,19 @@ func TestCORSPreflight(t *testing.T) {
 		}),
 		authHandler,
 		profileHandler,
+		noopSettingsRoutes{},
 		noopWalletRoutes{},
 		noopDebtRoutes{},
+		noopCategoryRoutes{},
 		noopMutationRoutes{},
+		noopRecurringRoutes{},
+		noopAnalyticsRoutes{},
+		noopExportRoutes{},
 		noopDashboardRoutes{},
 		noopSummaryRoutes{},
+		noopHealthScoreRoutes{},
+		noopLeakageRoutes{},
+		noopNotificationRoutes{},
 		[]string{"http://localhost:5173"},
 		middleware.NewAuthMiddleware(tokenManager),
 	)

@@ -4,13 +4,17 @@ import "time"
 
 // User is the authenticated ownership root in the application.
 type User struct {
-	ID           string
-	Email        string
-	Username     string
-	PasswordHash string
-	FullName     string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                string
+	Email             string
+	Username          string
+	PasswordHash      string
+	FullName          string
+	PreferredCurrency string
+	Timezone          string
+	DateFormat        string
+	WeekStartDay      string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // Claims is the JWT payload used by the API.

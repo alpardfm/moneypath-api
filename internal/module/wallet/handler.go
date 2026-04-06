@@ -74,6 +74,35 @@ func (h *Handler) ListActive(w http.ResponseWriter, r *http.Request) {
 	))
 }
 
+// ListArchived returns archived wallets for the authenticated user.
+func (h *Handler) ListArchived(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.AuthUserID(r.Context())
+	if !ok {
+		response.Unauthorized(w)
+		return
+	}
+
+	pagination := params.ParsePagination(r)
+	result, err := h.service.ListArchived(r.Context(), userID, ListOptions{
+		Page:     pagination.Page,
+		PageSize: pagination.PageSize,
+	})
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	items := make([]map[string]any, 0, len(result.Items))
+	for _, wallet := range result.Items {
+		items = append(items, walletResponse(&wallet))
+	}
+	response.Success(w, http.StatusOK, items, response.NewPaginationMeta(
+		pagination.Page,
+		pagination.PageSize,
+		result.TotalItems,
+	))
+}
+
 // GetByID returns one wallet by id.
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.AuthUserID(r.Context())

@@ -113,6 +113,14 @@ func sanitizeInput(input UpsertInput) UpsertInput {
 	input.WalletID = strings.TrimSpace(input.WalletID)
 	input.Amount = strings.TrimSpace(input.Amount)
 	input.Description = strings.TrimSpace(input.Description)
+	if input.CategoryID != nil {
+		categoryID := strings.TrimSpace(*input.CategoryID)
+		if categoryID == "" {
+			input.CategoryID = nil
+		} else {
+			input.CategoryID = &categoryID
+		}
+	}
 	if input.DebtID != nil {
 		debtID := strings.TrimSpace(*input.DebtID)
 		input.DebtID = &debtID

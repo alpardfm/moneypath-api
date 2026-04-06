@@ -6,11 +6,12 @@ import (
 )
 
 type stubRepository struct {
-	createFn     func(ctx context.Context, wallet *Wallet) error
-	listFn       func(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
-	getByIDFn    func(ctx context.Context, userID, walletID string) (*Wallet, error)
-	updateNameFn func(ctx context.Context, userID, walletID, name string) (*Wallet, error)
-	inactiveFn   func(ctx context.Context, userID, walletID string) error
+	createFn       func(ctx context.Context, wallet *Wallet) error
+	listFn         func(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
+	listArchivedFn func(ctx context.Context, userID string, options ListOptions) (*ListResult, error)
+	getByIDFn      func(ctx context.Context, userID, walletID string) (*Wallet, error)
+	updateNameFn   func(ctx context.Context, userID, walletID, name string) (*Wallet, error)
+	inactiveFn     func(ctx context.Context, userID, walletID string) error
 }
 
 func (s *stubRepository) Create(ctx context.Context, wallet *Wallet) error {
@@ -18,6 +19,12 @@ func (s *stubRepository) Create(ctx context.Context, wallet *Wallet) error {
 }
 func (s *stubRepository) ListActive(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
 	return s.listFn(ctx, userID, options)
+}
+func (s *stubRepository) ListArchived(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	if s.listArchivedFn == nil {
+		return &ListResult{}, nil
+	}
+	return s.listArchivedFn(ctx, userID, options)
 }
 func (s *stubRepository) GetByID(ctx context.Context, userID, walletID string) (*Wallet, error) {
 	return s.getByIDFn(ctx, userID, walletID)

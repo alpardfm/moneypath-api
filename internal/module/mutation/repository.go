@@ -8,6 +8,7 @@ type ListOptions struct {
 	PageSize      int
 	Type          string
 	WalletID      string
+	CategoryID    string
 	DebtID        string
 	RelatedToDebt *bool
 	From          string

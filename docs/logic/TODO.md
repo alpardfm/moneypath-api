@@ -256,7 +256,7 @@ Deploy the product and start using it in real life.
 - [x] Verify debt flow in deployed environment
 - [x] Verify mutation flow in deployed environment
 - [x] Verify summary/dashboard in deployed environment
-- [ ] Start personal daily usage
+- [x] Start personal daily usage
 - [x] Record friction notes and improvement backlog
 
 ## Exit Criteria
@@ -269,13 +269,13 @@ Deploy the product and start using it in real life.
 # Post-MVP Backlog
 
 ## Nice to Have Later
-- [ ] category system
-- [ ] recurring transactions
-- [ ] monthly analytics
-- [ ] financial health scoring
-- [ ] leakage detection
-- [ ] export/report
-- [ ] notifications
-- [ ] richer settings
-- [ ] improved archive views
-- [ ] better dashboard visualizations
+- [x] category system
+- [x] recurring transactions
+- [x] monthly analytics
+- [x] financial health scoring
+- [x] leakage detection
+- [x] export/report
+- [x] notifications
+- [x] richer settings
+- [x] improved archive views
+- [x] better dashboard visualizations

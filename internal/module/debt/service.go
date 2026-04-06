@@ -60,6 +60,25 @@ func (s *Service) List(ctx context.Context, userID string, options ListOptions) 
 	return result, nil
 }
 
+// ListArchived lists inactive debts for the authenticated user.
+func (s *Service) ListArchived(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+	if options.Page <= 0 {
+		options.Page = 1
+	}
+	if options.PageSize <= 0 {
+		options.PageSize = 20
+	}
+
+	result, err := s.repo.ListArchived(ctx, userID, options)
+	if err != nil {
+		return nil, err
+	}
+	for i := range result.Items {
+		result.Items[i].Status = deriveStatus(result.Items[i].RemainingAmount, result.Items[i].IsActive)
+	}
+	return result, nil
+}
+
 // GetByID returns a debt by id for the authenticated user.
 func (s *Service) GetByID(ctx context.Context, userID, debtID string) (*Debt, error) {
 	item, err := s.repo.GetByID(ctx, userID, debtID)
