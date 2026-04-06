@@ -236,9 +236,9 @@ func (r *PostgresRepository) RunDue(ctx context.Context, userID string, now time
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	result := &RunDueResult{}
+	var dueRules []Rule
 	for rows.Next() {
 		var rule Rule
 		if err := rows.Scan(
@@ -260,9 +260,20 @@ func (r *PostgresRepository) RunDue(ctx context.Context, userID string, now time
 			&rule.CreatedAt,
 			&rule.UpdatedAt,
 		); err != nil {
+			rows.Close()
 			return nil, err
 		}
+		dueRules = append(dueRules, rule)
+	}
 
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+
+	for i := range dueRules {
+		rule := dueRules[i]
 		if err := r.executeRule(ctx, tx, &rule); err != nil {
 			result.Skipped = append(result.Skipped, SkippedRunItem{RuleID: rule.ID, Reason: err.Error()})
 			continue
@@ -270,9 +281,6 @@ func (r *PostgresRepository) RunDue(ctx context.Context, userID string, now time
 		result.Processed++
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
