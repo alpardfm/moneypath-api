@@ -113,7 +113,7 @@ func (r *PostgresRepository) GetOverview(ctx context.Context, userID string) (*O
 				AND happened_at >= date_trunc('month', CURRENT_DATE)
 		)
 		SELECT
-			COALESCE(c.id, '') AS category_id,
+			COALESCE(c.id::text, '') AS category_id,
 			COALESCE(c.name, 'Uncategorized') AS category_name,
 			COALESCE(SUM(m.amount)::text, '0') AS total_amount
 		FROM mutations m

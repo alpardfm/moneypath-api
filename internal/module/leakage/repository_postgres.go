@@ -36,7 +36,7 @@ func (r *PostgresRepository) GetTotalOutgoing(ctx context.Context, userID string
 func (r *PostgresRepository) ListCategorySpends(ctx context.Context, userID string, days int) ([]CategorySpend, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT
-			COALESCE(c.id, '') AS category_id,
+			COALESCE(c.id::text, '') AS category_id,
 			COALESCE(c.name, 'Uncategorized') AS category_name,
 			COALESCE(SUM(m.amount)::text, '0') AS total_amount,
 			COUNT(*)::int AS transaction_count
