@@ -1,297 +1,192 @@
 # Moneypath API
 
-Moneypath API is a backend service for a single-user personal finance application designed to help users track money movement, wallet balances, debts, and basic financial condition through a simple but structured system.
+![Go](https://img.shields.io/badge/Go-1.25-00ADD8?style=flat-square&logo=go&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+[![CI](https://github.com/alpardfm/moneypath-api/actions/workflows/ci.yml/badge.svg)](https://github.com/alpardfm/moneypath-api/actions/workflows/ci.yml)
 
-This project is built not only as a backend exercise, but as a real product foundation intended for daily personal use, future frontend integration, deployment, and iterative improvement based on real-world usage.
+Personal finance REST API for tracking cash flow, wallets, debts, and budgets. Built with Go, PostgreSQL, and Clean Architecture principles.
 
----
-
-## Vision
-
-Moneypath is a personal finance product focused on:
-
-- tracking money flow clearly
-- managing multiple wallets
-- recording debt and debt payments
-- keeping wallet balances trustworthy
-- providing basic financial summary and dashboard
-- building a usable daily finance workflow before chasing advanced features
-
-The first version prioritizes **trust, correctness, and usability** over complexity.
+> 🚀 **Live:** Deployed and used daily as a real personal finance tool.
 
 ---
 
-## Product Principles
+## Features
 
-### 1. Mutation is the source of truth
-All balance-changing events must go through `mutation`.
-
-This means:
-
-- wallet balance is not manually edited
-- debt financial state is not freely manipulated
-- summary and dashboard are derived from actual financial events
-
-### 2. Wallet and Debt are master data
-Wallet and Debt are master records. Mutation is the event layer that changes financial state.
-
-### 3. Trust over features
-This is a finance product. If wallet balance or debt state becomes inconsistent, user trust is broken.
-
-### 4. Real usage over theoretical completeness
-The MVP is built to be actually used in daily life, not just to look complete on paper.
+- **Authentication** — JWT-based register/login with secure password hashing
+- **Wallet Management** — Multiple wallets with balance integrity enforcement
+- **Mutation Tracking** — All financial events (income/expense) as immutable records
+- **Debt Management** — Track debts with payment history via mutations
+- **Dashboard & Summary** — Aggregated financial overview
+- **Categories** — Organize transactions by category
+- **Recurring Rules** — Scheduled recurring transactions
+- **Health Score** — Financial health assessment
+- **Export** — Data export capabilities
 
 ---
 
-## MVP Scope
+## Architecture
 
-### Included
-- Auth
-- Profile
-- Wallet management
-- Mutation management
-- Debt management
-- Basic dashboard
-- Basic summary
+```
+┌─────────────────────────────────────────────────────┐
+│                    HTTP Layer                         │
+│  Router → Middleware (Auth, CORS) → Handler          │
+├─────────────────────────────────────────────────────┤
+│                  Module Layer                         │
+│  auth │ wallet │ mutation │ debt │ dashboard │ ...   │
+│  Each module: handler → service → repository         │
+├─────────────────────────────────────────────────────┤
+│                 Platform Layer                        │
+│           database │ logger │ config                  │
+├─────────────────────────────────────────────────────┤
+│                  PostgreSQL                           │
+└─────────────────────────────────────────────────────┘
+```
 
-### Postponed
-- advanced analytics
-- category reporting
-- recurring transactions
-- notifications
-- export/report
-- multi-user collaboration
-- advanced auth flows
-- richer settings and preferences
-
----
-
-## Core Domain
-
-### Master Data
-- User
-- Wallet
-- Debt
-
-### Financial Event
-- Mutation
-
-### Derived Data
-- Dashboard
-- Summary
+**Design Principles:**
+- Module-first layout — each feature is self-contained
+- Mutation is the source of truth — all balance changes go through mutations
+- Wallet balance integrity — no direct edits, no negative balances
+- User data isolation — strict ownership enforcement
 
 ---
 
-## Main Business Rules
+## Tech Stack
 
-## Wallet
-- a user can create multiple wallets
-- wallet balance cannot be edited directly
-- all wallet balance changes must go through mutations
-- wallet balance must not go below zero
-- outgoing mutation must be rejected if balance is insufficient
-- wallet cannot be deleted/inactivated if balance is not zero
-- wallet can be soft deleted/inactivated only if balance is zero
-- inactive wallet should not appear in active selection
-- wallet history must remain intact
-
-## Debt
-- debt is master data
-- debt can be created directly from debt module
-- debt can also be created from mutation flow
-- debt state is updated through related mutations
-- debt cannot be deleted if remaining debt is not zero
-- fully paid debt can remain with status `lunas`
-- fully paid debt may also be soft deleted/inactivated
-- debt history must remain intact
-
-## Mutation
-- mutation is the main source of financial events
-- for MVP, mutation has only two types:
-  - `masuk`
-  - `keluar`
-- minimum fields:
-  - date
-  - time
-  - type
-  - wallet
-  - amount
-  - description
-  - related_to_debt (yes/no)
-- `masuk` increases wallet balance
-- `keluar` decreases wallet balance
-- outgoing mutation must be rejected if wallet balance is insufficient
-- mutation can be edited
-- mutation cannot be deleted
-
-## Mutation and Debt Interaction
-
-If mutation is related to debt, a simple toggle must exist:
-
-- `related_to_debt = yes/no`
-
-### If mutation is `keluar` and related to debt
-- user chooses source wallet
-- user chooses debt
-- wallet balance is reduced
-- debt remaining amount is reduced
-- mutation is recorded normally
-
-### If mutation is `masuk` and related to debt
-- user can choose existing debt
-- or create new debt
-
-### If creating new debt from mutation
-- mutation amount and debt initial amount may be different
-- this supports real-world cases such as admin fees, deductions, or partial disbursement
-
-Required fields when creating debt from mutation:
-- debt name
-- initial debt amount
-- tenor
-- tenor unit
-- installment/payment amount
-- other required debt metadata
+| Layer | Technology |
+|-------|-----------|
+| Language | Go 1.25 |
+| Router | chi/v5 |
+| Database | PostgreSQL 16 |
+| Migrations | golang-migrate |
+| Auth | JWT (golang-jwt/v5) |
+| Docs | Swagger (swaggo) |
+| Linter | golangci-lint |
+| Container | Docker + docker-compose |
+| CI/CD | GitHub Actions → VPS deploy |
 
 ---
 
-## MVP Success Criteria
+## Quick Start
 
-Moneypath MVP is considered successful if:
+### Prerequisites
+- Go 1.25+
+- Docker & Docker Compose
+- Make
 
-- user can register and login
-- user can create wallets
-- user can record incoming and outgoing mutations
-- wallet balances update correctly
-- wallet cannot go negative
-- user can create and manage debts
-- mutations can interact with debts correctly
-- user can see a simple dashboard and summary
-- the API is deployable
-- the product is usable for daily personal finance tracking
+### 1. Clone & Setup
+```bash
+git clone https://github.com/alpardfm/moneypath-api.git
+cd moneypath-api
+cp .env.example .env
+```
 
----
+### 2. Start Database
+```bash
+make compose-up
+```
 
-## Suggested Architecture
+### 3. Run Migrations
+```bash
+make migrate-up
+```
 
-Recommended layered architecture:
+### 4. Run Server
+```bash
+make run
+```
 
-- handler / controller
-- service / use case
-- repository
-- domain / entity
-- database / migration
+The API will be available at `http://localhost:8080`.
 
-Suggested modules:
-
-- auth
-- profile
-- wallet
-- debt
-- mutation
-- dashboard
-- summary
-
----
-
-## Data Ownership
-
-All core data must belong to the authenticated user through `user_id`.
-
-This means:
-
-- user cannot access another user's wallets
-- user cannot access another user's debts
-- user cannot access another user's mutations
-- all reads and writes must enforce ownership rules
+### Using Docker (Full Stack)
+```bash
+docker compose up -d
+```
 
 ---
 
-## Critical Engineering Concerns
+## API Documentation
 
-This project must handle carefully:
+Swagger UI is available at `/swagger/` when the server is running.
 
-- wallet balance consistency
-- mutation edit recalculation logic
-- debt remaining amount consistency
-- safe transactional updates
-- prevention of negative balances
-- prevention of cross-user data leakage
+A Postman collection is also available at [`docs/tech/moneypath-api.postman_collection.json`](docs/tech/moneypath-api.postman_collection.json).
 
 ---
 
-## QA Priorities
+## Project Structure
 
-### Tier 1
-- register/login works correctly
-- user isolation works correctly
-- incoming mutation updates wallet correctly
-- outgoing mutation updates wallet correctly
-- wallet cannot go negative
-- debt payment reduces remaining debt correctly
-- editing mutation does not corrupt wallet/debt state
-
-### Tier 2
-- creating debt from mutation is consistent
-- wallet cannot be deleted when balance is not zero
-- debt cannot be deleted when remaining debt is not zero
-- summary calculations are correct
-
-### Tier 3
-- filtering mutation history
-- profile update behavior
-- debt status display
-- inactive/archive display behavior
+```
+moneypath-api/
+├── cmd/
+│   ├── api/          # Application entrypoint
+│   └── migrate/      # Migration CLI
+├── internal/
+│   ├── app/          # Bootstrap & dependency wiring
+│   ├── config/       # Environment-driven config
+│   ├── http/         # Router, middleware, handlers, response
+│   ├── module/       # Business features (auth, wallet, mutation, debt, ...)
+│   └── platform/     # Infrastructure (database, logger)
+├── migrations/       # SQL migration files
+├── scripts/          # Deploy & utility scripts
+├── docs/             # Technical & product documentation
+├── Dockerfile        # Multi-stage production build
+├── docker-compose.yml
+└── Makefile
+```
 
 ---
 
-## Roadmap Overview
+## Available Commands
 
-### Phase 0
-Foundation and project setup
-
-### Phase 1
-Domain design and database schema
-
-### Phase 2
-Auth and profile
-
-### Phase 3
-Wallet module
-
-### Phase 4
-Debt module
-
-### Phase 5
-Mutation core
-
-### Phase 6
-Mutation and debt integration
-
-### Phase 7
-Summary and dashboard
-
-### Phase 8
-API hardening and testing
-
-### Phase 9
-Deployment and real-life usage
+```bash
+make run              # Run the API server
+make test             # Run all tests
+make lint             # Run golangci-lint
+make fmt              # Format code
+make compose-up       # Start PostgreSQL container
+make compose-down     # Stop containers
+make migrate-up       # Apply migrations
+make migrate-down     # Rollback migrations
+make prod-up          # Deploy production stack
+make smoke-test       # Run smoke tests
+```
 
 ---
 
-## Long-Term Intent
+## Business Rules
 
-Moneypath should become a real end-to-end product that is:
-
-- usable in daily life
-- technically trustworthy
-- deployable
-- testable
-- shareable for feedback
-- built with both engineering and product thinking
+- **Wallet balance cannot go negative** — outgoing mutations are rejected if insufficient
+- **All balance changes go through mutations** — no direct wallet edits
+- **Debt state is mutation-driven** — payments reduce remaining debt via mutations
+- **User data isolation** — strict ownership enforcement on all resources
+- **Mutation is immutable** — can be edited but never deleted
 
 ---
 
-## One-Line System Decision
+## Deployment
 
-Moneypath is a single-user personal finance product where wallets and debts are master data, all balance-changing events go through mutations, and the first release is focused on delivering a usable, trustworthy daily finance workflow rather than an overbuilt finance platform.
+The project includes a production deployment pipeline:
+
+1. Push to `master` triggers GitHub Actions
+2. Code is synced to VPS via rsync
+3. Docker containers are rebuilt and restarted
+4. Migrations run automatically on startup
+
+See [`docs/tech/deployment.md`](docs/tech/deployment.md) for details.
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
