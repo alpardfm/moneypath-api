@@ -75,3 +75,87 @@ func TestListActiveUsesDefaultPagination(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 }
+
+func TestCreateSuccess(t *testing.T) {
+	repo := &stubRepository{
+		createFn: func(ctx context.Context, wallet *Wallet) error {
+			if wallet.Name != "BRI" {
+				t.Fatalf("expected trimmed name BRI, got %q", wallet.Name)
+			}
+			if wallet.UserID != "user-1" {
+				t.Fatalf("expected user-1, got %q", wallet.UserID)
+			}
+			return nil
+		},
+	}
+	service := NewService(repo)
+
+	_, err := service.Create(context.Background(), "user-1", CreateInput{Name: "  BRI  "})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestUpdateRejectsEmptyName(t *testing.T) {
+	service := NewService(&stubRepository{})
+
+	_, err := service.Update(context.Background(), "user-1", "wallet-1", UpdateInput{Name: "   "})
+	if err != ErrWalletValidation {
+		t.Fatalf("expected ErrWalletValidation, got %v", err)
+	}
+}
+
+func TestUpdateSuccess(t *testing.T) {
+	repo := &stubRepository{
+		updateNameFn: func(ctx context.Context, userID, walletID, name string) (*Wallet, error) {
+			if name != "Jago" {
+				t.Fatalf("expected trimmed name Jago, got %q", name)
+			}
+			return &Wallet{ID: walletID, Name: name}, nil
+		},
+	}
+	service := NewService(repo)
+
+	w, err := service.Update(context.Background(), "user-1", "wallet-1", UpdateInput{Name: "  Jago  "})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if w.Name != "Jago" {
+		t.Fatalf("expected Jago, got %q", w.Name)
+	}
+}
+
+func TestListArchivedUsesDefaultPagination(t *testing.T) {
+	service := NewService(&stubRepository{
+		listArchivedFn: func(ctx context.Context, userID string, options ListOptions) (*ListResult, error) {
+			if options.Page != 1 {
+				t.Fatalf("expected default page 1, got %d", options.Page)
+			}
+			if options.PageSize != 20 {
+				t.Fatalf("expected default page size 20, got %d", options.PageSize)
+			}
+			return &ListResult{}, nil
+		},
+	})
+
+	if _, err := service.ListArchived(context.Background(), "user-1", ListOptions{}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestGetByIDDelegatesToRepo(t *testing.T) {
+	repo := &stubRepository{
+		getByIDFn: func(ctx context.Context, userID, walletID string) (*Wallet, error) {
+			return &Wallet{ID: walletID, UserID: userID, Name: "BRI"}, nil
+		},
+	}
+	service := NewService(repo)
+
+	w, err := service.GetByID(context.Background(), "user-1", "wallet-1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if w.ID != "wallet-1" {
+		t.Fatalf("expected wallet-1, got %q", w.ID)
+	}
+}
